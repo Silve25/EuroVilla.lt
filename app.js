@@ -1,500 +1,547 @@
-/******************************************************
- * Eurovilla.lt — Frontend app.js (v4)
- * - Anti-doublon (email/tel) via backend
- * - Points live (polling snapshot)
- * - Parrainage: resolve ?r= (publicId) -> userId
- * - Journal de clics / partage avec nonce
- ******************************************************/
+/* ==========================================================
+   Eurovilla.lt — app.js (v5 final)
+   - Anti-doublon : front + backend
+   - Parrainage r/z/sn + resolve(r) côté backend
+   - Lien perso basé sur publicId (propre & stable)
+   - Polling points 5s + compteur participants
+   - CTA bounce subtil, modales, thème
+   ========================================================== */
 
-/** ================== CONFIG ================== **/
+/* ================== CONFIG ================== */
 const API = {
-  BASE: "https://script.google.com/macros/s/PASTE_YOUR_DEPLOYMENT_ID/exec", // <-- À remplacer
-  DRAW_ISO: "2025-10-31T23:59:59Z",
-  POLL_MS: 5000
+  // ⚠️ Colle ici l’URL de ton dernier déploiement Apps Script WebApp:
+  BASE: "https://script.google.com/macros/s/REPLACE_WITH_YOUR_WEBAPP_URL/exec",
+  TIMEOUT_MS: 12000,
+  RETRIES: 2
 };
+// date tirage (front, FOMO visuel) — côté API aussi (stats.drawISO)
+const DRAW_DATE = new Date("2025-10-31T23:59:59Z");
 
-const DOM = {
-  countdown: {
-    d: () => document.getElementById("d"),
-    h: () => document.getElementById("h"),
-    m: () => document.getElementById("m"),
-    s: () => document.getElementById("s"),
-  },
-  counterLeft: () => document.getElementById("counter-left"),
-  form: () => document.getElementById("signup-form"),
-  success: () => document.getElementById("signup-success"),
-  error: () => document.getElementById("signup-error"),
-  score: () => document.getElementById("score-points"),
-  progressBar: () => document.getElementById("progress-bar"),
-  progressLabel: () => document.getElementById("progress-label"),
-  refLink: () => document.getElementById("ref-link"),
-  toggleTheme: () => document.getElementById("toggle-theme"),
-};
+// Polling / UI
+const POLL_MS = 5000;
+const POINTS_MAX_VISUAL = 50;
 
-/** ================== UTIL ================== **/
-const qs = (sel, el=document) => el.querySelector(sel);
-const qsa = (sel, el=document) => Array.from(el.querySelectorAll(sel));
+/* ================== Helpers génériques ================== */
+const $  = (s, c=document) => c.querySelector(s);
+const $$ = (s, c=document) => Array.from(c.querySelectorAll(s));
 
-function getParams() {
-  const out = {};
-  const q = location.search.slice(1).split("&").filter(Boolean);
-  q.forEach(kv=>{
-    const [k,v=""] = kv.split("=");
-    out[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g," "));
-  });
-  return out;
-}
+const pad2 = n => String(n).padStart(2,"0");
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const nowISO = () => new Date().toISOString();
 
-function b64urlDecode(str=""){
+function setLS(k, v){ try{ localStorage.setItem(k, typeof v==="string" ? v : JSON.stringify(v)); }catch{} }
+function getLS(k, def=null){
   try{
-    // web-safe: -_ au lieu de +/
-    const s = str.replace(/-/g, "+").replace(/_/g, "/");
-    return decodeURIComponent(escape(atob(s)));
-  }catch(_){ return ""; }
+    const raw = localStorage.getItem(k);
+    if(raw==null) return def;
+    if(raw.startsWith("{") || raw.startsWith("[")) return JSON.parse(raw);
+    return raw;
+  }catch{ return def; }
 }
+function delLS(k){ try{ localStorage.removeItem(k); }catch{} }
 
-function uuid(){
-  return ([1e7]+-1e3+-4e3+-8e3+-1e11)
-    .replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
-}
+// mini ID local pour fallback
+function localUid(prefix="u_"){ return prefix + Math.random().toString(36).slice(2,10); }
 
-function hashString(s){
-  let h=0; for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i); h|=0;}
-  return Math.abs(h).toString(36);
-}
-
-function deviceFingerprint(){
-  const localId = localStorage.getItem("ev_localId") || (function(){
-    const v = "l_" + uuid();
-    localStorage.setItem("ev_localId", v);
-    return v;
-  })();
-
-  const parts = [
-    navigator.userAgent,
-    navigator.language,
-    navigator.platform,
-    screen.width + "x" + screen.height,
-    String(Intl.DateTimeFormat().resolvedOptions().timeZone||""),
-    localId
-  ].join("|");
-  return hashString(parts);
-}
-
-function setHidden(id, val){ const el=document.getElementById(id); if(el) el.value = val||""; }
-
-/** ================== STORAGE ================== **/
-const store = {
-  getUser(){ try{ return JSON.parse(localStorage.getItem("ev_user")||"null"); }catch(_){ return null; } },
-  setUser(u){ localStorage.setItem("ev_user", JSON.stringify(u||null)); },
-  clearUser(){ localStorage.removeItem("ev_user"); }
-};
-
-/** ================== API helpers ================== **/
-async function apiPost(body){
-  const res = await fetch(API.BASE, {
-    method: "POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify(body||{})
-  });
-  return res.json();
-}
-async function apiGet(params){
-  const url = API.BASE + "?" + new URLSearchParams(params).toString();
-  const res = await fetch(url);
-  return res.json();
-}
-
-/** ================== REF / CLICKS ================== **/
-function parseRefChainFromParams(params){
-  // Priorité: z (b64url "id1,id2,.."), sinon rc (csv), sinon ref (legacy userId)
-  if (params.z){
-    const csv = b64urlDecode(params.z);
-    if (csv) return csv.split(",").map(s=>s.trim()).filter(Boolean);
-  }
-  if (params.rc){
-    return String(params.rc).split(",").map(s=>s.trim()).filter(Boolean);
-  }
-  if (params.ref){
-    return [String(params.ref).trim()];
-  }
-  return [];
-}
-
-async function resolveReferrerUserIdFromPublicId(pid){
-  if (!pid) return "";
+// simple empreinte (indicatif)
+function simpleFingerprint(){
   try{
-    const data = await apiGet({ action:"resolve", r: pid });
-    return (data && data.ok && data.userId) ? data.userId : "";
-  }catch(_){ return ""; }
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    const data = [navigator.userAgent, navigator.language, screen.width+"x"+screen.height, tz, window.devicePixelRatio||1].join("|");
+    let h=0; for(let i=0;i<data.length;i++){ h=((h<<5)-h)+data.charCodeAt(i); h|=0; }
+    return "fp_" + Math.abs(h);
+  }catch{ return "fp_unknown"; }
 }
 
-async function logLandingClick(params, fp){
-  const pageUrl = location.href;
-  const userAgent = navigator.userAgent || "";
-  const channel = params.c || ""; // canal s’il est passé
-  const nonce   = params.sn || "";
+function getParam(name){ try{ return new URL(location.href).searchParams.get(name); }catch{ return null; }}
 
-  // refChain depuis z/rc/ref
-  let chain = parseRefChainFromParams(params);
-
-  // Si ?r= (publicId court), on ne connaît pas le userId -> le backend gère déjà,
-  // mais on l’envoie quand même côté "pageUrl" pour traçabilité. (referrerId sera résolu côté serveur)
-  await apiPost({
-    action: "click",
-    pageUrl,
-    nonce,
-    refChain: chain.join(","),
-    fingerprint: fp,
-    userAgent,
-    ip: "",            // IP mieux captée côté serveur (headers)
-  }).catch(()=>{});
-}
-
-/** ================== THEME ================== **/
-function setupThemeToggle(){
-  const btn = DOM.toggleTheme();
-  if (!btn) return;
-  const KEY="ev_theme";
-  const root = document.documentElement;
-
-  function apply(t){
-    root.setAttribute("data-theme", t);
-    localStorage.setItem(KEY, t);
-  }
-  const saved = localStorage.getItem(KEY);
-  if (saved){ apply(saved); }
-
-  btn.addEventListener("click", ()=>{
-    const cur = root.getAttribute("data-theme") || "dark";
-    apply(cur==="dark" ? "light" : "dark");
+/* --------- network utils (GET/POST urlencoded sans CORS preflight) ---------- */
+function toUrlParams(obj){
+  const p = new URLSearchParams();
+  Object.keys(obj||{}).forEach(k=>{
+    const v = obj[k];
+    if(v == null) return;
+    if(Array.isArray(v)) v.forEach(x=> p.append(k, String(x)));
+    else p.append(k, String(v));
   });
+  return p;
 }
-
-/** ================== COUNTDOWN & STATS ================== **/
-function startCountdown(drawISO){
-  const end = new Date(drawISO || API.DRAW_ISO).getTime();
-  function tick(){
-    const now = Date.now();
-    let diff = Math.max(0, end - now);
-    const d = Math.floor(diff/(24*3600e3)); diff -= d*24*3600e3;
-    const h = Math.floor(diff/(3600e3));     diff -= h*3600e3;
-    const m = Math.floor(diff/(60e3));       diff -= m*60e3;
-    const s = Math.floor(diff/1000);
-    if (DOM.countdown.d()) DOM.countdown.d().textContent = String(d);
-    if (DOM.countdown.h()) DOM.countdown.h().textContent = String(h).padStart(2,"0");
-    if (DOM.countdown.m()) DOM.countdown.m().textContent = String(m).padStart(2,"0");
-    if (DOM.countdown.s()) DOM.countdown.s().textContent = String(s).padStart(2,"0");
-  }
-  tick();
-  setInterval(tick, 1000);
-}
-
-async function loadStats(){
+async function fetchJSON(url, opts={}, retries=API.RETRIES){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), API.TIMEOUT_MS);
   try{
-    const data = await apiGet({ action:"stats" });
-    if (data && data.ok){
-      if (DOM.counterLeft()) DOM.counterLeft().textContent = String(data.totalParticipants||0);
-      startCountdown(data.drawISO || API.DRAW_ISO);
-    } else {
-      startCountdown(API.DRAW_ISO);
-    }
-  }catch(_){
-    startCountdown(API.DRAW_ISO);
-  }
-}
-
-/** ================== MODALS ================== **/
-function setupModals(){
-  qsa("[data-open]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-open");
-      const m = document.getElementById(id);
-      if (!m) return;
-      m.hidden = false;
-      m.setAttribute("aria-hidden","false");
-    });
-  });
-  qsa("[data-action='close-modal'], .modal-backdrop").forEach(el=>{
-    el.addEventListener("click", ()=>{
-      const modal = el.closest(".modal");
-      if(!modal) return;
-      modal.hidden = true;
-      modal.setAttribute("aria-hidden","true");
-      // Stopper la vidéo si c’est l’iframe 360
-      const ifr = modal.querySelector("iframe");
-      if (ifr){ ifr.src = ifr.src; }
-    });
-  });
-}
-
-/** ================== SHARE ================== **/
-function buildReferralURL(publicId, opts={}){
-  const base = location.origin + location.pathname; // URL “propre” de la page
-  const u = new URL(base, location.href);
-  if (publicId) u.searchParams.set("r", publicId);
-  if (opts.channel) u.searchParams.set("c", opts.channel);
-  if (opts.nonce)   u.searchParams.set("sn", opts.nonce);
-  return u.toString();
-}
-
-async function shareStart(nonce, userId, channel){
-  try{
-    await apiPost({
-      action:"share-start",
-      nonce,
-      userId,
-      channel,
-      pageUrl: location.href
-    });
-  }catch(_){}
-}
-
-function setupSharing(){
-  const btnWA = qsa("[data-action='share-whatsapp']");
-  const btnEM = qsa("[data-action='share-email']");
-  const btnCopy = qsa("[data-action='copy-ref']");
-
-  btnCopy.forEach(b=>{
-    b.addEventListener("click", async ()=>{
-      const el = DOM.refLink();
-      if (!el) return;
-      try{
-        await navigator.clipboard.writeText(el.value);
-        b.textContent = "Copié !";
-        setTimeout(()=> b.textContent="Copier", 1200);
-      }catch(_){}
-    });
-  });
-
-  btnWA.forEach(b=>{
-    b.addEventListener("click", async ()=>{
-      const u = store.getUser();
-      if (!u || !u.publicId) return alert("Inscris-toi d’abord pour obtenir ton lien !");
-      const nonce = uuid();
-      await shareStart(nonce, u.userId, "wa");
-      const url = buildReferralURL(u.publicId, { channel:"wa", nonce });
-      const text = `Je participe au tirage Eurovilla (villa à Mougins) 🎟️ Viens tenter ta chance : ${url}`;
-      const wa = `https://wa.me/?text=${encodeURIComponent(text)}`;
-      window.open(wa, "_blank", "noopener");
-    });
-  });
-
-  btnEM.forEach(b=>{
-    b.addEventListener("click", async ()=>{
-      const u = store.getUser();
-      if (!u || !u.publicId) return alert("Inscris-toi d’abord pour obtenir ton lien !");
-      const nonce = uuid();
-      await shareStart(nonce, u.userId, "em");
-      const url = buildReferralURL(u.publicId, { channel:"em", nonce });
-      const subject = "Eurovilla — je tente ma chance 🎟️";
-      const body = `Hello,\n\nJe participe au tirage Eurovilla (villa à Mougins). Inscris-toi ici : ${url}\n\nBonne chance !`;
-      location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    });
-  });
-}
-
-/** ================== PROGRESSION POINTS ================== **/
-function updatePointsUI(points){
-  const p = Number(points||0);
-  if (DOM.score()) DOM.score().textContent = String(p);
-
-  const steps = [0,5,15,30,50];
-  const max = steps[steps.length-1];
-  const clamped = Math.max(0, Math.min(p, max));
-
-  // Trouver la tranche
-  let i=0; while (i<steps.length-1 && clamped>steps[i+1]) i++;
-  const a = steps[i], b = steps[Math.min(i+1, steps.length-1)];
-  const pct = (clamped<=a) ? (a/max*100) :
-              (clamped>=b) ? (b/max*100) :
-              ((a + (clamped-a)*(1/(b-a))*(b-a)) / max * 100);
-
-  if (DOM.progressBar())  DOM.progressBar().style.width = `${(clamped/max*100).toFixed(0)}%`;
-  if (DOM.progressLabel())DOM.progressLabel().textContent = `${Math.round((clamped/max)*100)}%`;
-}
-
-/** ================== SIGNUP ================== **/
-function getContactsSelection(){
-  return qsa("input[name='contact']:checked").map(i=>i.value).join(",");
-}
-
-async function onSubmitSignup(e){
-  e.preventDefault();
-  const f = DOM.form();
-  if (!f) return;
-
-  // validations HTML5
-  if (!f.reportValidity()) return;
-
-  // champs
-  const firstName = f.firstName.value.trim();
-  const lastName  = f.lastName.value.trim();
-  const email     = f.email.value.trim();
-  const phone     = f.phone.value.trim();
-  const country   = f.country.value.trim();
-  const contactAll= getContactsSelection();
-  const accept    = qs("#acceptRules").checked;
-
-  if (!accept){
-    alert("Merci d’accepter le règlement & la confidentialité.");
-    return;
-  }
-
-  // referrer / chain (déjà préparés au load)
-  const referrerId = f.referrerId.value || "";
-  const refChain   = (f.dataset.refChain ? f.dataset.refChain.split(",").filter(Boolean) : []);
-
-  // empreinte + contexte
-  const fingerprint= f.fingerprint.value || deviceFingerprint();
-  const campaign   = f.campaign.value || "display_q4_2025";
-  const userAgent  = navigator.userAgent || "";
-
-  // UX
-  DOM.success().hidden = true;
-  DOM.error().hidden = true;
-  const submitBtn = f.querySelector("button[type='submit']");
-  const oldLabel = submitBtn.textContent;
-  submitBtn.disabled = true; submitBtn.textContent = "Validation…";
-
-  try{
-    const payload = {
-      action: "register",
-      firstName, lastName, email, phone, country,
-      contactAll,
-      referrerId,
-      refChain,
-      fingerprint,
-      campaign,
-      acqChannel: "", // (optionnel) si tu veux pousser un canal d’acq
-      userAgent,
-      ip: "",         // IP côté serveur
-      source: "web"
-    };
-
-    const data = await apiPost(payload);
-
-    if (!data || data.ok !== true){
-      throw new Error((data && data.code) || "SERVER_ERROR");
-    }
-
-    // Les deux cas "REGISTERED" ou "ALREADY_REGISTERED" sont des réussites
-    if (data.code === "REGISTERED" || data.code === "ALREADY_REGISTERED"){
-      const user = {
-        userId: data.userId,
-        publicId: data.publicId || "",
-        points: Number(data.points||0)
-      };
-      store.setUser(user);
-      afterLoginOrSignup(user, {showCongrats: data.code==="REGISTERED"});
-      return;
-    }
-
-    throw new Error(data.code || "UNKNOWN");
+    const res = await fetch(url, { ...opts, signal: ctrl.signal, mode:"cors", redirect:"follow", credentials:"omit" });
+    clearTimeout(t);
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    return await res.json().catch(()=> ({}));
   }catch(err){
-    DOM.error().hidden = false;
-    console.error("Signup error:", err);
-  }finally{
-    submitBtn.disabled = false; submitBtn.textContent = oldLabel;
+    clearTimeout(t);
+    if(retries>0){ await sleep(300*(API.RETRIES-retries+1)); return fetchJSON(url, opts, retries-1); }
+    throw err;
   }
 }
-
-function afterLoginOrSignup(user, {showCongrats=false}={}){
-  // Afficher succès
-  DOM.success().hidden = false;
-
-  // Mettre à jour lien de parrainage
-  const url = buildReferralURL(user.publicId);
-  if (DOM.refLink()) DOM.refLink().value = url;
-
-  // Points init
-  updatePointsUI(user.points||0);
-
-  // Lancer le polling
-  startUserPolling(user.userId);
-
-  // Ouvrir modale si inscription fraîche
-  if (showCongrats){
-    const modal = document.getElementById("congrats-modal");
-    if (modal){ modal.hidden = false; modal.setAttribute("aria-hidden","false"); }
-  }
-}
-
-let pollTimer = null;
-async function pollUserOnce(userId){
+async function postForm(url, data, retries=API.RETRIES){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), API.TIMEOUT_MS);
   try{
-    const data = await apiGet({ action:"user", userId });
-    if (data && data.ok){
-      // on maintient le store pour garder points/publicId à jour
-      const prev = store.getUser() || {};
-      const fresh = { userId: data.userId, publicId: data.publicId||prev.publicId||"", points: Number(data.points||0) };
-      store.setUser(fresh);
-      updatePointsUI(fresh.points);
-      // rafraîchir ref-link si besoin
-      if (fresh.publicId && DOM.refLink() && !DOM.refLink().value.includes(fresh.publicId)){
-        DOM.refLink().value = buildReferralURL(fresh.publicId);
+    const res = await fetch(url, {
+      method: "POST",
+      body: toUrlParams(data),
+      mode: "cors",
+      redirect: "follow",
+      signal: ctrl.signal,
+      credentials: "omit",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" }
+    });
+    clearTimeout(t);
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    return await res.json().catch(()=> ({}));
+  }catch(err){
+    clearTimeout(t);
+    if(retries>0){ await sleep(300*(API.RETRIES-retries+1)); return postForm(url, data, retries-1); }
+    throw err;
+  }
+}
+
+/* ================== Base64URL (pour z) ================== */
+function b64urlEncode(str){
+  try{
+    return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  }catch{ return ""; }
+}
+function b64urlDecode(str){
+  try{
+    const pad = str.length%4===2 ? "==" : str.length%4===3 ? "=" : "";
+    const s = String(str||"").replace(/-/g,"+").replace(/_/g,"/") + pad;
+    return decodeURIComponent(escape(atob(s)));
+  }catch{ return ""; }
+}
+function chainTokenFromUpline(upline){ return b64urlEncode((upline||[]).join(",")); }
+function uplineFromChainToken(z){ const csv=b64urlDecode(z||""); return csv? csv.split(",").map(s=>s.trim()).filter(Boolean) : []; }
+
+/* ================== Thème ================== */
+(function themeInit(){
+  const root = document.documentElement, btn = $("#toggle-theme");
+  const saved = getLS("theme");
+  if(saved==="light" || saved==="dark") root.setAttribute("data-theme", saved);
+  btn?.addEventListener("click", ()=>{
+    const cur = root.getAttribute("data-theme")==="light" ? "dark" : "light";
+    root.setAttribute("data-theme", cur);
+    setLS("theme", cur);
+  });
+})();
+
+/* ================== CTA bounce (subtil au clic) ================== */
+(function wireBounce(){
+  const bounce = (el)=>{
+    if(!el) return;
+    el.style.transition = el.style.transition ? el.style.transition : "transform 120ms cubic-bezier(.2,.8,.2,1)";
+    el.addEventListener("click", ()=>{
+      el.style.transform = "translateY(0) scale(0.98)";
+      requestAnimationFrame(()=>{
+        setTimeout(()=>{ el.style.transform = "translateY(-1px) scale(1.0)"; }, 85);
+        setTimeout(()=>{ el.style.transform = ""; }, 180);
+      });
+    });
+  };
+  $$(".btn").forEach(bounce);
+})();
+
+/* ================== Countdown ================== */
+(function countdown(){
+  const d=$("#d"),h=$("#h"),m=$("#m"),s=$("#s");
+  if(!d||!h||!m||!s) return;
+  const tick=()=>{
+    const diff = Math.max(0, DRAW_DATE - new Date());
+    const D = Math.floor(diff/86400000);
+    const H = Math.floor((diff/3600000)%24);
+    const M = Math.floor((diff/60000)%60);
+    const S = Math.floor((diff/1000)%60);
+    d.textContent=D; h.textContent=pad2(H); m.textContent=pad2(M); s.textContent=pad2(S);
+  };
+  tick(); setInterval(tick,1000);
+})();
+
+/* ================== Modale 360 ================== */
+(function modal360(){
+  const modal=$("#modal-360");
+  if(!modal) return;
+  const openBtns=$$("[data-open='modal-360']");
+  const closers=$$("[data-action='close-modal']");
+  const open = ()=>{ modal.removeAttribute("hidden"); modal.setAttribute("aria-hidden","false"); };
+  const close= ()=>{ modal.setAttribute("aria-hidden","true"); modal.setAttribute("hidden",""); };
+  openBtns.forEach(b=> b.addEventListener("click", open));
+  closers.forEach(c=> c.addEventListener("click", close));
+  document.addEventListener("keydown", e=> e.key==="Escape" && close());
+})();
+
+/* ================== Toast rapide ================== */
+function toast(msg){
+  let t=$("#toast-hint");
+  if(!t){
+    t=document.createElement("div"); t.id="toast-hint";
+    Object.assign(t.style,{position:"fixed",left:"50%",bottom:"24px",transform:"translateX(-50%)",
+      background:"rgba(0,0,0,.78)",color:"#fff",padding:"10px 14px",borderRadius:"10px",zIndex:"9999",
+      fontWeight:"700",backdropFilter:"blur(4px)",maxWidth:"92%",textAlign:"center"});
+    document.body.appendChild(t);
+  }
+  t.textContent=msg; t.style.opacity="1"; t.style.transition="none";
+  setTimeout(()=>{ t.style.transition="opacity .45s"; t.style.opacity="0"; }, 1600);
+}
+
+/* ================== UI Points ================== */
+function setPointsUI(n){
+  const pts = Math.max(1, Number(n||1));
+  setLS("points_ui", pts);
+  const score=$("#score-points"); if(score) score.textContent=pts;
+  const pct = Math.round(Math.min(100, pts/POINTS_MAX_VISUAL*100));
+  const bar=$("#progress-bar"), lab=$("#progress-label");
+  if(bar) bar.style.width=pct+"%";
+  if(lab) lab.textContent=pct+"%";
+}
+setPointsUI(getLS("points_ui", 1));
+
+/* ================== Parrainage (r/z/sn) ================== */
+function ownUserId(){ return getLS("userId",""); }
+function ownPublicId(){ return getLS("publicId",""); }
+
+// Belle origine
+function prettyOrigin(){
+  if(location.origin && /^https?:\/\//i.test(location.origin)) return location.origin;
+  return "https://eurovilla.lt";
+}
+
+// Lien court basé sur **publicId** si connu (sinon fallback userId haché local)
+function buildReferralURL(channel="cp"){
+  const pid = ownPublicId();
+  const uid = ownUserId();
+  const chain = [];
+  // si on a un userId local, on le place aussi dans la chaîne z (côté admin, audit multi-niveaux)
+  if(uid) chain.push(uid);
+  const z = chain.length ? chainTokenFromUpline(chain) : "";
+
+  const base = new URL(prettyOrigin() + location.pathname);
+  if(pid) base.searchParams.set("r", pid);
+  if(z)   base.searchParams.set("z", z);
+  if(channel) base.searchParams.set("c", channel);
+  return base.toString();
+}
+
+/* À l’atterrissage : lecture r/z et log 1 seul click */
+(function referralLanding(){
+  const u = new URL(location.href);
+  const r  = u.searchParams.get("r");       // publicId court
+  const z  = u.searchParams.get("z");       // upline encodée
+  const rc = u.searchParams.get("rc");      // compat
+  const ref= u.searchParams.get("ref");     // compat
+
+  let chain=[];
+  if(z) chain = uplineFromChainToken(z);
+  else if(rc) chain = rc.split(",").filter(Boolean);
+  else if(ref) chain = [ref];
+
+  if(chain.length) setLS("upline", chain);
+  if(r) setLS("arrival_r", r);
+
+  // Log 1 seul click par combi r+z
+  const sig = (r||"") + "|" + (z||"") + "|" + (rc||"") + "|" + (ref||"");
+  const key = "click_logged_"+sig;
+  if(!getLS(key)){
+    postForm(API.BASE, {
+      action: "click",
+      pageUrl: location.href,
+      nonce: u.searchParams.get("sn") || "",
+      fingerprint: simpleFingerprint(),
+      userAgent: navigator.userAgent
+    }).then(()=> setLS(key, 1)).catch(()=>{});
+  }
+})();
+
+/* ================== Partages (WhatsApp / Email / Copie) ================== */
+async function shareStart(channel){
+  const uid = ownUserId();
+  const nonce = (uid? uid+"_":"") + "sn_" + Date.now().toString(36);
+  setLS("last_share_nonce", nonce);
+
+  // lien court
+  const url = new URL(buildReferralURL(channel));
+  url.searchParams.set("sn", nonce);
+
+  postForm(API.BASE, { action:"share-start", nonce, userId: uid||"", channel, pageUrl: location.href }).catch(()=>{});
+  return { nonce, url: url.toString() };
+}
+async function pollAck(nonce, ms=6000){
+  const start=Date.now();
+  while(Date.now()-start<ms){
+    try{
+      const q=new URL(API.BASE); q.searchParams.set("action","share-ack"); q.searchParams.set("nonce",nonce);
+      const r=await fetchJSON(q.toString(), {method:"GET"});
+      if(r && r.ok && r.ack===true) return true;
+    }catch{}
+    await sleep(700);
+  }
+  return false;
+}
+async function shareWhatsApp(){
+  const { nonce, url } = await shareStart("wa");
+  const text = `Je participe à Eurovilla.lt pour gagner une villa d’exception ! Inscris-toi (ça me donne des points) : ${url}`;
+  const wa = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  if(navigator.share){
+    try{ await navigator.share({ text, url }); pollAck(nonce).then(ok=> ok && toast("Lien WhatsApp ouvert ✅")); }
+    catch{ window.open(wa,"_blank"); }
+  }else{ window.open(wa,"_blank"); }
+}
+async function shareEmail(){
+  const { nonce, url } = await shareStart("em");
+  const subject="Rejoins-moi sur Eurovilla.lt (villa à gagner)";
+  const body   =`Hello,\n\nJe participe à Eurovilla.lt pour gagner une villa d’exception.\nInscris-toi ici (ça me donne des points) : ${url}\n\nC’est gratuit et le tirage est supervisé.\n`;
+  const mailto =`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailto;
+  pollAck(nonce).then(ok=> ok && toast("Lien email ouvert ✅"));
+}
+async function copyReferral(){
+  const { nonce, url } = await shareStart("cp");
+  try{ await navigator.clipboard.writeText(url); toast("Lien copié 👍"); }
+  catch{
+    const input=$("#ref-link");
+    if(input){ input.value=url; input.select(); document.execCommand("copy"); toast("Lien copié 👍"); }
+  }
+  pollAck(nonce).then(ok=> ok && toast("Premier clic détecté ✅"));
+}
+
+/* ================== Stats (participants) ================== */
+async function refreshStats(){
+  try{
+    const u = new URL(API.BASE); u.searchParams.set("action","stats");
+    const r = await fetchJSON(u.toString(), { method:"GET" });
+    const c = $("#counter-left");
+    if(c && r && r.ok && r.totalParticipants!=null){
+      c.textContent = Number(r.totalParticipants).toLocaleString("fr-FR");
+      if(r.drawISO){
+        // Optionnel : on pourrait aussi mettre à jour la date tirage
       }
     }
-  }catch(e){
-    console.warn("Polling error:", e);
+  }catch{
+    // laisse le placeholder "Chargement…" si échec
   }
 }
-function startUserPolling(userId){
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(()=> pollUserOnce(userId), API.POLL_MS);
-  // tick immédiat
-  pollUserOnce(userId);
+setInterval(refreshStats, 30000); // rafraîchit toutes les 30s
+refreshStats();
+
+/* ================== Snapshot utilisateur (points + filleuls) ================== */
+async function fetchUserSnapshot(userId){
+  try{
+    const u=new URL(API.BASE);
+    u.searchParams.set("action","user");
+    u.searchParams.set("userId", userId);
+    return await fetchJSON(u.toString(), { method:"GET" });
+  }catch{ return null; }
+}
+function updateUserUI(snapshot){
+  if(!snapshot || !snapshot.ok) return;
+  if(snapshot.points != null) setPointsUI(Number(snapshot.points));
+  const l1=$("#me-referrals-l1"); if(l1) l1.textContent = snapshot.referralsL1 ?? 0;
+  const l2=$("#me-referrals-l2"); if(l2) l2.textContent = snapshot.referralsL2 ?? 0;
+  const list=$("#me-referrals-list");
+  if(list && Array.isArray(snapshot.latestReferrals)){
+    list.innerHTML = snapshot.latestReferrals.map(r=>{
+      const name = r.firstName ? (r.firstName + (r.lastInitial? " "+r.lastInitial+"." : "")) : "Inscrit";
+      const emailMasked = r.emailMasked || "";
+      return `<li>${name} <small>${emailMasked}</small></li>`;
+    }).join("") || `<li><em>Pas encore de filleuls</em></li>`;
+  }
+}
+let pollTimer=null;
+function startUserPolling(){
+  const uid = ownUserId();
+  if(!uid) return;
+  const run = async ()=> updateUserUI(await fetchUserSnapshot(uid));
+  clearInterval(pollTimer);
+  run();
+  pollTimer = setInterval(run, POLL_MS);
+  document.addEventListener("visibilitychange", ()=> document.visibilityState==="visible" && run());
+  window.addEventListener("focus", run);
 }
 
-/** ================== INIT ================== **/
-async function init(){
-  setupThemeToggle();
-  setupModals();
-  setupSharing();
+/* ================== Persistance formulaire ================== */
+function persistFormFields(){
+  const ids = ["firstName","lastName","email","phone","country"];
+  ids.forEach(id=>{
+    const el = $("#"+id);
+    if(!el) return;
+    const saved = getLS("form_"+id);
+    if(saved!=null) el.value = saved;
+    const evt = el.tagName==="SELECT" ? "change" : "input";
+    el.addEventListener(evt, ()=> setLS("form_"+id, el.value));
+  });
 
-  // Préremplissage fingerprint
-  setHidden("fingerprint", deviceFingerprint());
+  // checkboxes contact
+  const boxes = $$("input[name='contact']");
+  const saved = getLS("form_contacts", []);
+  if(saved?.length) boxes.forEach(cb=> cb.checked = saved.includes(cb.value));
+  boxes.forEach(cb=> cb.addEventListener("change", ()=>{
+    const values = $$("input[name='contact']:checked").map(x=>x.value);
+    setLS("form_contacts", values);
+  }));
+}
 
-  // Préparer referrer et refChain
-  const params = getParams();
-  const fp = deviceFingerprint();
+/* ================== Validation simple front ================== */
+function isValidEmail(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e||"").trim()); }
+function isValidPhone(p){ return /^[+]?[\d\s().-]{6,}$/.test(String(p||"").trim()); }
 
-  // Journal de clic d’atterrissage (ne bloque pas)
-  logLandingClick(params, fp);
+/* ================== Submit (REGISTER) ================== */
+(function formInit(){
+  const form = $("#signup-form");
+  persistFormFields();
 
-  // Déduire refChain (illimité) depuis URL
-  const refChain = parseRefChainFromParams(params);
+  // fingerprint
+  const fpEl = $("#fingerprint"); if(fpEl) fpEl.value = simpleFingerprint();
 
-  // Si ?r=publicId -> résoudre en userId pour le L1
-  let referrerId = "";
-  if (params.r){
+  // bind partages
+  $("[data-action='share-whatsapp']")?.addEventListener("click", shareWhatsApp);
+  $("[data-action='share-email']")?.addEventListener("click", shareEmail);
+  $("[data-action='copy-ref']")?.addEventListener("click", copyReferral);
+
+  // si user déjà connu → hydrate son lien et démarre polling
+  const knownUid = ownUserId();
+  const knownPid = ownPublicId();
+  const refInput = $("#ref-link");
+  if((knownUid || knownPid) && refInput) refInput.value = buildReferralURL("cp");
+  if(knownUid) startUserPolling();
+
+  if(!form) return;
+
+  form.addEventListener("submit", async (e)=>{
+    e.preventDefault();
+
+    // reset messages
+    $("#signup-success")?.setAttribute("hidden","");
+    $("#signup-already")?.setAttribute("hidden","");
+    $("#signup-error")?.setAttribute("hidden","");
+
+    // collecte
+    const fd = new FormData(form);
+    const payload = Object.fromEntries(fd.entries());
+
+    const contacts = $$("input[name='contact']:checked").map(x=>x.value);
+    if(!contacts.length) contacts.push("email");
+
+    // validations simples front
+    if(!payload.firstName?.trim() || !payload.lastName?.trim()){
+      const err=$("#signup-error"); err.textContent="Merci d’indiquer prénom et nom."; return err.removeAttribute("hidden");
+    }
+    if(!isValidEmail(payload.email)){
+      const err=$("#signup-error"); err.textContent="Email invalide."; return err.removeAttribute("hidden");
+    }
+    if(!isValidPhone(payload.phone)){
+      const err=$("#signup-error"); err.textContent="Téléphone invalide."; return err.removeAttribute("hidden");
+    }
+    if(!payload.country){
+      const err=$("#signup-error"); err.textContent="Merci de choisir un pays (UE)."; return err.removeAttribute("hidden");
+    }
+    if(!$("#acceptRules")?.checked){
+      const err=$("#signup-error"); err.textContent="Merci d’accepter le règlement et la politique de confidentialité."; return err.removeAttribute("hidden");
+    }
+
+    // upline captée à l’arrivée
+    const upline = getLS("upline", []);
+    const req = {
+      action: "register",
+      firstName: (payload.firstName||"").trim(),
+      lastName:  (payload.lastName||"").trim(),
+      email:     (payload.email||"").trim(),
+      phone:     (payload.phone||"").trim(),
+      country:   (payload.country||"").trim(),
+      contactAll: contacts.join(","),
+
+      // attributions
+      referrerId: (upline[0]||""),
+      refChain: (upline.slice(1)||[]).join(","),
+
+      // audit
+      fingerprint: simpleFingerprint(),
+      campaign: payload.campaign || "q4_site_main",
+      acqChannel: getParam("c") || "",
+      userAgent: navigator.userAgent,
+      pageUrl: location.href,
+      timestamp: nowISO()
+      // IP est vue côté Apps Script (e.source, etc.) — inutile de faker côté front
+    };
+
     try{
-      referrerId = await resolveReferrerUserIdFromPublicId(params.r);
-    }catch(_){}
-  }else if (refChain.length){
-    // si rc/ref présent et qu’on veut forcer L1 = premier de la chaine
-    referrerId = refChain[0] || "";
-  }
+      const res = await postForm(API.BASE, req);
+      if(!res){ throw new Error("Empty response"); }
 
-  // stocker dans le formulaire
-  setHidden("referrerId", referrerId);
-  const form = DOM.form();
-  if (form) form.dataset.refChain = refChain.join(",");
+      // NORMALISATION : le backend renvoie toujours userId + points (REGISTERED ou ALREADY_REGISTERED)
+      if(res.ok){
+        // stocke identifiants
+        if(res.userId) setLS("userId", res.userId);
+        if(res.publicId) setLS("publicId", res.publicId);
 
-  // Stats + countdown
-  loadStats();
+        // hydrate le lien perso basé sur publicId
+        if(refInput) refInput.value = buildReferralURL("cp");
 
-  // Restore session utilisateur si déjà inscrit
-  const u = store.getUser();
-  if (u && u.userId){
-    afterLoginOrSignup(u, {showCongrats:false});
-  }
+        // points
+        setPointsUI(Number(res.points||1));
 
-  // Soumission formulaire
-  if (DOM.form()){
-    DOM.form().addEventListener("submit", onSubmitSignup);
-  }
-}
+        // messages
+        if(res.code === "ALREADY_REGISTERED"){
+          const already=$("#signup-already");
+          if(already){
+            already.textContent = "Tu es déjà inscrit(e) ✅ On synchronise tes points et ton lien de parrainage.";
+            already.removeAttribute("hidden");
+          }
+          toast("Déjà inscrit(e) — session synchronisée ✅");
+        }else{
+          $("#signup-success")?.removeAttribute("hidden");
+          $("#congrats-modal")?.removeAttribute("hidden");
+          $("#congrats-modal")?.setAttribute("aria-hidden","false");
+          $("#cta-more-points")?.addEventListener("click", ()=>{
+            location.hash="#points";
+            $("#congrats-modal")?.setAttribute("aria-hidden","true");
+            $("#congrats-modal")?.setAttribute("hidden","");
+          });
+          toast("Inscription validée 🎉");
+        }
 
-// Démarrage
-document.addEventListener("DOMContentLoaded", init);
+        // démarre/relance polling
+        startUserPolling();
+        setLS("session_active", true);
+        location.hash="#points";
+        return;
+      }
+
+      // Erreurs contrôlées (ex: pays hors UE)
+      if(res.code === "COUNTRY_NOT_ELIGIBLE"){
+        const err=$("#signup-error"); err.textContent=res.message || "Pays non éligible (UE uniquement).";
+        return err.removeAttribute("hidden");
+      }
+
+      // Fallback erreur
+      const err=$("#signup-error"); err.textContent="Impossible d’enregistrer pour le moment.";
+      err.removeAttribute("hidden");
+    }catch(ex){
+      console.error(ex);
+      const err=$("#signup-error"); err.textContent="Réseau indisponible. Merci de réessayer dans un instant.";
+      err.removeAttribute("hidden");
+    }
+  });
+})();
+
+/* ================== Bind global & état initial ================== */
+document.addEventListener("DOMContentLoaded", ()=>{
+  // Boutons de partage (fallback au cas où)
+  $("[data-action='share-whatsapp']")?.addEventListener("click", shareWhatsApp);
+  $("[data-action='share-email']")?.addEventListener("click", shareEmail);
+  $("[data-action='copy-ref']")?.addEventListener("click", copyReferral);
+
+  // Lien perso si session existante
+  const refInput = $("#ref-link");
+  if(refInput && (ownUserId() || ownPublicId())) refInput.value = buildReferralURL("cp");
+
+  // Session active → polling direct
+  if(ownUserId() && getLS("session_active")) startUserPolling();
+
+  // Placeholder compteur (évite “0 participants”)
+  const c=$("#counter-left"); if(c && !c.textContent.trim()) c.textContent="Chargement…";
+});
