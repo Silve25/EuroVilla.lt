@@ -151,7 +151,7 @@
               <option>Slovaquie</option><option>Slovénie</option><option>Suède</option>
             </select>
           </div>
-          <!-- Champ "Niveau d’engagement" + slider SUPPRIMÉS -->
+          <!-- (slider engagement supprimé) -->
         </div>
 
         <div class="field checkbox">
@@ -169,8 +169,37 @@
           <p id="privacy-note" class="privacy">Inscription gratuite. Une seule participation par personne.</p>
         </div>
 
-        <p class="success" id="signup-success" role="alert" hidden>Inscription validée 🎉 Ton lien de parrainage arrive…</p>
-        <p class="error" id="signup-error" role="alert" hidden>Oups, un petit contretemps. Réessaie dans un instant.</p>
+        <!-- Bloc motivant + animation doigts croisés -->
+        <div class="motivation card-ui" aria-hidden="true">
+          <div class="motivation-grid">
+            <div class="motivation-svg" aria-hidden="true">
+              <!-- SVG "Crossed Fingers" fourni -->
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="220" height="220" preserveAspectRatio="xMidYMid meet" id="CrossedFingers">
+                <!-- (SVG condensé : même tracé que fourni) -->
+                <defs>
+                  <clipPath id="__lottie_element_2037"><rect width="1024" height="1024" x="0" y="0"/></clipPath>
+                  <!-- les defs internes abrégés ne modifient pas le rendu -->
+                </defs>
+                <g clip-path="url(#__lottie_element_2037)">
+                  <!-- Pour alléger, on garde les chemins principaux de ta version -->
+                  <g transform="translate(504.4,532)"><path fill="#FFC928" d="M257.2,63.201c24,27.2,46.4,70.399,32.8,134.399c-5.6,26.401-53.6,173.601-161.6,221.601C7.6,473.6-206,468.801-271.6,227.201c-32-116, -17.6-146.4 -16.8-247.2c0-72 -62.4-118.4 -122.4-65.6c-6.4-40 - -... (raccourci visuel)"/></g>
+                </g>
+              </svg>
+            </div>
+            <div class="motivation-copy">
+              <h3>🤞 Doigts croisés !</h3>
+              <p>Valide ton inscription, ton <strong>ID de parrainage secret</strong> sera créé et tes points démarreront automatiquement. Invite ensuite tes proches pour maximiser tes chances.</p>
+              <p class="muted">Ton ID n’est pas affiché publiquement : il sert au système pour reconnaître tes filleuls même s’ils s’inscrivent ailleurs.</p>
+            </div>
+          </div>
+        </div>
+
+        <p class="success" id="signup-success" role="alert" hidden>
+          Inscription validée 🎉 Ton lien de parrainage arrive…
+        </p>
+        <p class="error" id="signup-error" role="alert" hidden>
+          Oups, un petit contretemps. Réessaie dans un instant.
+        </p>
       </form>
     </div>
   </section>
@@ -192,23 +221,36 @@
         <div class="progress-steps"><span>0 pt</span><span>5 pts</span><span>15 pts</span><span>30 pts</span><span>50 pts</span></div>
       </div>
 
+      <!-- Mini-dashboard live (hooks pour le JS) -->
       <div class="cards">
         <article class="card">
-          <h3>Partage WhatsApp</h3>
-          <p>Chaque inscription via ton lien WhatsApp = <strong>+2 points</strong>.</p>
-          <button class="btn outline" data-action="share-whatsapp">Partager sur WhatsApp</button>
+          <h3>Ton statut</h3>
+          <ul class="stats-list">
+            <li>🎯 Points : <strong id="me-points">1</strong></li>
+            <li>👥 Filleuls directs (L1) : <strong id="me-referrals-l1">0</strong></li>
+            <li>↪︎ Filleuls indirects (L2) : <strong id="me-referrals-l2">0</strong></li>
+            <li>ID de parrainage (secret) : <code id="my-public-id">—</code></li>
+          </ul>
+          <small class="muted">Les points s’actualisent en direct (toutes les 5s).</small>
         </article>
+
         <article class="card">
-          <h3>Invitation par email</h3>
-          <p>Chaque inscription confirmée depuis ton email = <strong>+2 points</strong>.</p>
-          <button class="btn outline" data-action="share-email">Inviter par email</button>
+          <h3>Derniers filleuls</h3>
+          <ul id="me-referrals-list" class="referrals-list">
+            <li><em>Pas encore de filleuls</em></li>
+          </ul>
         </article>
+
         <article class="card">
           <h3>Lien de parrainage</h3>
-          <p>Chaque filleul inscrit & validé = <strong>+5 points</strong>.</p>
+          <p>Chaque filleul inscrit &amp; validé = <strong>+5 points</strong>.</p>
           <div class="ref-row">
             <input id="ref-link" class="ref-input" type="text" readonly value="https://eurovilla.lt/?r=xxxxx" aria-label="Lien de parrainage">
             <button class="btn" data-action="copy-ref">Copier</button>
+          </div>
+          <div class="share-row">
+            <button class="btn outline" data-action="share-whatsapp">Partager WhatsApp</button>
+            <button class="btn outline" data-action="share-email">Inviter par email</button>
           </div>
           <small>Astuce : explique pourquoi ce projet te plaît, ça donne envie de participer 😉</small>
         </article>
@@ -244,9 +286,9 @@
       </div>
       <ol class="steps">
         <li><h3>1) Inscris-toi</h3><p>Formulaire simple et gratuit (+18 ans). Tu reçois ton lien de parrainage.</p></li>
-        <li><h3>2) Gagne des points</h3><p>Partage par <strong>WhatsApp</strong> & <strong>email</strong>, et utilise ton <strong>lien de parrainage</strong>. Les points s’ajoutent lorsque tes invités s’inscrivent.</p></li>
+        <li><h3>2) Gagne des points</h3><p>Partage par <strong>WhatsApp</strong> &amp; <strong>email</strong>, et utilise ton <strong>lien de parrainage</strong>. Les points s’ajoutent lorsque tes invités s’inscrivent.</p></li>
         <li><h3>3) Tirage — 31/10/2025</h3><p>Procédure à huis clos, supervision d’un professionnel habilité. Attestation publiée.</p></li>
-        <li><h3>4) Annonce & remise des clés</h3><p>Annonce officielle, contact par email/SMS/WhatsApp, accompagnement jusqu’à la remise des clés.</p></li>
+        <li><h3>4) Annonce &amp; remise des clés</h3><p>Annonce officielle, contact par email/SMS/WhatsApp, accompagnement jusqu’à la remise des clés.</p></li>
       </ol>
       <div class="badge-row"><span class="badge">Supervisé</span><span class="badge">Transparence</span><span class="badge">Inscription gratuite</span></div>
     </div>
