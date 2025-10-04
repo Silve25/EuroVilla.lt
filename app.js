@@ -1,9 +1,18 @@
 /* ==========================================================
-   Eurovilla.lt — app.js (liens courts + polling + multi-niveaux)
-   PopMondi upgrade: anti-doublons, login doux, mémoire locale
+   Eurovilla.lt — app.js (v4.2)
+   - Liens courts r/z/sn/c
+   - Anti-doublons (email/téléphone) + “login doux”
+   - Polling points 5s + progression lisse
+   - Partage WhatsApp / Email / Copie (nonce + ack)
+   - Upline multi-niveaux illimitée (L1/L2/L3 côté scoring)
+   - Préremplissage & mémoire locale
+   - Pays par défaut = Lituanie (si non choisi)
+   - Modales vidéo 360° et Félicitations
+   - Hooks compatibles avec Code.gs v3.1
    ========================================================== */
 
 const API = {
+  // ⚠️ Utilise ton dernier déploiement Apps Script (fourni par toi : Version 2)
   BASE: "https://script.google.com/macros/s/AKfycbx0PahxiURVZ_110-KaOsJEdP0DduSqwz0dxTgQ1R3eS4uX0TKiW3HI6k_beXLrsyJFig/exec",
   TIMEOUT_MS: 12000,
   RETRIES: 2
@@ -11,7 +20,7 @@ const API = {
 
 const DRAW_DATE = new Date("2025-10-31T23:59:59");
 
-/* -------------------- Utils -------------------- */
+/* -------------------- Helpers DOM/async/storage -------------------- */
 const $  = (s, c=document) => c.querySelector(s);
 const $$ = (s, c=document) => Array.from(c.querySelectorAll(s));
 const pad2 = n => String(n).padStart(2,"0");
@@ -31,12 +40,10 @@ async function fetchJSON(url, opts={}, retries=API.RETRIES){
     return await res.json().catch(()=> ({}));
   }catch(err){
     clearTimeout(t);
-    if(retries>0){ await sleep(300*(API.RETRIES-retries+1)); return fetchJSON(url, opts, retries-1); }
+    if(retries>0){ await sleep(350*(API.RETRIES-retries+1)); return fetchJSON(url, opts, retries-1); }
     throw err;
   }
 }
-
-// Encodage URL-encoded SANS headers -> pas de préflight
 function toUrlParams(obj){
   const p = new URLSearchParams();
   Object.keys(obj).forEach(k=>{
@@ -53,7 +60,7 @@ async function postForm(url, data, retries=API.RETRIES){
   try{
     const res = await fetch(url, {
       method: "POST",
-      body: toUrlParams(data), // PAS de headers -> simple request
+      body: toUrlParams(data), // Pas de headers -> évite le preflight
       mode: "cors",
       redirect: "follow",
       signal: ctrl.signal
@@ -63,19 +70,20 @@ async function postForm(url, data, retries=API.RETRIES){
     return await res.json().catch(()=> ({}));
   }catch(err){
     clearTimeout(t);
-    if(retries>0){ await sleep(300*(API.RETRIES-retries+1)); return postForm(url, data, retries-1); }
+    if(retries>0){ await sleep(350*(API.RETRIES-retries+1)); return postForm(url, data, retries-1); }
     throw err;
   }
 }
 
+/* -------------------- Identité & empreintes -------------------- */
 function uid(prefix="u_"){ return prefix + Math.random().toString(36).slice(2,10); }
-function shortId(uid){
-  // Id court esthétique (5 chars) calculé à partir de userId
+/** id court esthétique (5 chars) pour r= */
+function shortId(userId){
   try{
-    let h=0; for(let i=0;i<uid.length;i++){ h=((h<<5)-h)+uid.charCodeAt(i); h|=0; }
+    let h=0; for(let i=0;i<userId.length;i++){ h=((h<<5)-h)+userId.charCodeAt(i); h|=0; }
     const base = Math.abs(h).toString(36);
-    return base.slice(-5); // plus court qu'avant
-  }catch{ return uid.slice(-5); }
+    return base.slice(-5);
+  }catch{ return userId.slice(-5); }
 }
 function simpleFingerprint(){
   try{
@@ -86,7 +94,7 @@ function simpleFingerprint(){
 }
 function getParam(name){ const u=new URL(location.href); return u.searchParams.get(name); }
 
-/* -------- Base64url pour compresser la chaîne multi-niveaux -------- */
+/* -------------------- Base64url pour upline multi-niveaux -------------------- */
 function b64urlEncode(str){
   try{ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
   catch{ return ""; }
@@ -98,8 +106,10 @@ function b64urlDecode(str){
     return decodeURIComponent(escape(atob(s)));
   }catch{ return ""; }
 }
+function chainTokenFromUpline(upline){ return b64urlEncode((upline||[]).join(",")); }
+function uplineFromChainToken(z){ const csv=b64urlDecode(z||""); return csv? csv.split(",").map(s=>s.trim()).filter(Boolean) : []; }
 
-/* --------- UE --------- */
+/* -------------------- UE & thème -------------------- */
 function countryIsEU(label){
   return [
     "Allemagne","Autriche","Belgique","Bulgarie","Chypre","Croatie","Danemark","Espagne","Estonie","Finlande",
@@ -107,8 +117,6 @@ function countryIsEU(label){
     "Pologne","Portugal","Roumanie","Slovaquie","Slovénie","Suède"
   ].includes((label||"").trim());
 }
-
-/* -------------------- Thème -------------------- */
 (function themeInit(){
   const root=document.documentElement, btn=$("#toggle-theme");
   const saved=getLS("theme"); if(saved==="light"||saved==="dark") root.setAttribute("data-theme", saved);
@@ -118,7 +126,7 @@ function countryIsEU(label){
   });
 })();
 
-/* -------------------- Countdown -------------------- */
+/* -------------------- Countdown & FOMO live counter -------------------- */
 (function countdown(){
   const d=$("#d"),h=$("#h"),m=$("#m"),s=$("#s"); if(!d||!h||!m||!s) return;
   const tick=()=>{
@@ -128,24 +136,21 @@ function countryIsEU(label){
   };
   tick(); setInterval(tick,1000);
 })();
+(async function syncStats(){
+  try{
+    const u=new URL(API.BASE); u.searchParams.set("action","stats");
+    const r=await fetchJSON(u.toString(), {method:"GET"});
+    const c=$("#counter-left"); if(c && r && r.totalParticipants!=null) c.textContent=r.totalParticipants.toLocaleString("fr-FR");
+  }catch{}
+})();
 
-/* -------------------- Modale 360° -------------------- */
+/* -------------------- Modale vidéo 360° -------------------- */
 (function modal360(){
   const modal=$("#modal-360"), body=$("#modal-360-body");
   const openBtns=$$("[data-open='modal-360']"); const closers=$$("[data-action='close-modal']");
   function open(){
     if(!modal) return;
-    if(body && !body.dataset.loaded){
-      body.innerHTML=`
-        <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;border:1px solid rgba(0,0,0,.1)">
-          <iframe src="https://www.youtube.com/embed/VIDEO_360_ID?rel=0"
-                  title="Visite 360°"
-                  style="position:absolute;inset:0;width:100%;height:100%;border:0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowfullscreen></iframe>
-        </div>`;
-      body.dataset.loaded="1";
-    }
+    // Si tu préfères YouTube, décommente la partie iFrame et commente la balise <video> de l'HTML.
     modal.removeAttribute("hidden"); modal.setAttribute("aria-hidden","false");
   }
   function close(){ if(!modal) return; modal.setAttribute("aria-hidden","true"); modal.setAttribute("hidden",""); }
@@ -154,28 +159,7 @@ function countryIsEU(label){
   document.addEventListener("keydown", e=>e.key==="Escape"&&close());
 })();
 
-/* -------------------- Points UI -------------------- */
-const POINTS_MAX=50; // barre visuelle
-function setPointsUI(n){
-  const prev = Number(getLS("points_ui", 1));
-  const pts  = Math.max(1, Number(n||1));
-  setLS("points_ui", pts);
-  const score=$("#score-points"); if(score) score.textContent=pts;
-  const pct=Math.round(Math.min(100, pts/POINTS_MAX*100));
-  const bar=$("#progress-bar"), lab=$("#progress-label");
-  if(bar){
-    // animation douce
-    bar.style.transition="width .6s ease";
-    bar.style.width=pct+"%";
-  }
-  if(lab) lab.textContent=pct+"%";
-  // confettis (désactive si tu veux)
-  if(pts>prev){
-    // confetti(); // décommenter pour activer
-  }
-}
-
-/* -------------------- Toast -------------------- */
+/* -------------------- Toasts -------------------- */
 function toast(msg){
   let t=$("#toast-hint");
   if(!t){
@@ -187,28 +171,41 @@ function toast(msg){
   setTimeout(()=>{ t.style.transition="opacity .5s"; t.style.opacity="0"; }, 1800);
 }
 
-/* -------------------- Referral utils (liens courts) -------------------- */
+/* -------------------- Points UI -------------------- */
+const POINTS_MAX=50;
+function setPointsUI(n){
+  const prev = Number(getLS("points_ui", 1));
+  const pts  = Math.max(1, Number(n||1));
+  setLS("points_ui", pts);
+  const score=$("#score-points"); if(score) score.textContent=pts;
+  const pct=Math.round(Math.min(100, pts/POINTS_MAX*100));
+  const bar=$("#progress-bar"), lab=$("#progress-label");
+  if(bar){ bar.style.transition="width .6s ease"; bar.style.width=pct+"%"; }
+  if(lab) lab.textContent=pct+"%";
+  // Animation optionnelle lorsqu'on gagne des points :
+  // if(pts>prev){ confetti(); }
+}
+function confetti(){
+  const el=document.createElement("div");
+  el.innerHTML="🎉";
+  Object.assign(el.style,{position:"fixed",left:Math.random()*100+"%",top:"-20px",fontSize:"24px",animation:"fall 2s linear forwards"});
+  document.body.appendChild(el); setTimeout(()=>el.remove(),2000);
+}
+
+/* -------------------- Référents & liens courts -------------------- */
 function ownUserId(){ return getLS("userId",""); }
-
-/** upline -> token z (base64url) */
-function chainTokenFromUpline(upline){ return b64urlEncode((upline||[]).join(",")); }
-/** token z -> upline[] */
-function uplineFromChainToken(z){ const csv=b64urlDecode(z||""); return csv? csv.split(",").map(s=>s.trim()).filter(Boolean) : []; }
-
-/** origin “propre” même en file:// */
 function prettyOrigin(){
   if(location.origin && location.origin.startsWith("http")) return location.origin;
   return "https://eurovilla.lt";
 }
-
 /** Lien court :
  *  r = id court esthétique (5 chars)
  *  z = upline compressée (base64url)
  *  c = canal (wa|em|cp)
- *  sn = nonce (ajouté au moment du partage)
+ *  sn = nonce (ajouté dynamiquement)
  */
 function buildReferralLinkShort(userId, channel){
-  const chain = [userId].concat(getLS("upline", [])); // on garde la chaîne complète (illimitée)
+  const chain = [userId].concat(getLS("upline", []));
   const z = chainTokenFromUpline(chain);
   const r = shortId(userId);
   const base = new URL(prettyOrigin() + location.pathname.replace(/^file:.*?\/([^/]+)$/, "/$1"));
@@ -218,38 +215,39 @@ function buildReferralLinkShort(userId, channel){
   return base.toString();
 }
 
-/* -------------------- Landing: click tracking (r/z/rc/ref/sn) -------------------- */
+/* -------------------- Atterrissage avec r/z/rc/ref + log click -------------------- */
 (function referralLanding(){
   const url = new URL(location.href);
-  const z  = url.searchParams.get("z");        // chaîne compressée (source de vérité)
-  const rc = url.searchParams.get("rc");       // compat (ancien)
-  const ref= url.searchParams.get("ref");      // compat (ancien)
+  const z  = url.searchParams.get("z");
+  const rc = url.searchParams.get("rc");
+  const ref= url.searchParams.get("ref");
+  const r  = url.searchParams.get("r"); // publicId esthétique
+  const c  = url.searchParams.get("c") || ""; // canal transporté
+
   let chain = [];
   if(z){ chain = uplineFromChainToken(z); }
   else if(rc){ chain = rc.split(",").filter(Boolean); }
   else if(ref){ chain = [ref]; }
+  // Si on a uniquement r (publicId), le backend résout dans action=click
+  if(chain.length){ setLS("upline", chain); }
 
-  if(chain.length){
-    setLS("upline", chain); // on mémorise toute la chaîne (illimitée)
-  }
-
-  // Anti "double log click" (clé locale)
-  const refKey = (chain[0]||"") + ":" + (z||rc||"");
+  const refKey = (chain[0]||"") + ":" + (z||rc||ref||r||"");
   const key = "click_logged_"+refKey;
-  if(!chain.length || getLS(key)) return;
+  if(getLS(key)) return; // ne log pas 2x le même clic
 
   postForm(API.BASE, {
     action: "click",
     timestamp: new Date().toISOString(),
-    referrerId: chain[0] || "",          // L1 réel
-    refChain: chain.slice(1).join(","),  // le reste de la chaîne
+    referrerId: chain[0] || "",
+    refChain: chain.slice(1).join(","),
     fingerprint: simpleFingerprint(),
     pageUrl: location.href,
     userAgent: navigator.userAgent
+    // (r/c/sn sont lus côté backend à partir de pageUrl)
   }).then(()=> setLS(key,1)).catch(()=>{});
 })();
 
-/* -------------------- Nonces de partage (sn) -------------------- */
+/* -------------------- Nonces de partage + ack -------------------- */
 async function shareStart(channel){
   const uid = ownUserId();
   const nonce = (uid? uid+"_":"") + "sn_" + Date.now().toString(36);
@@ -263,20 +261,12 @@ async function shareStart(channel){
     url.searchParams.set("c", channel);
     return url.toString();
   })();
-
   const u = new URL(base); u.searchParams.set("sn", nonce);
 
-  postForm(API.BASE, {
-    action: "share-start",
-    nonce,
-    userId: uid || "",
-    channel,
-    pageUrl: location.href
-  }).catch(()=>{});
+  postForm(API.BASE, { action:"share-start", nonce, userId:uid||"", channel, pageUrl:location.href }).catch(()=>{});
 
   return { nonce, url: u.toString() };
 }
-
 async function pollAck(nonce, ms=6000){
   const start=Date.now();
   while(Date.now()-start < ms){
@@ -320,7 +310,7 @@ async function copyReferral(){
   pollAck(nonce).then(ok=> ok && toast("Premier clic détecté ✅"));
 }
 
-/* -------------------- Polling: snapshot user (points + referrals) -------------------- */
+/* -------------------- Snapshot utilisateur (polling 5s) -------------------- */
 async function fetchUserSnapshot(userId){
   try{
     const u=new URL(API.BASE);
@@ -334,9 +324,10 @@ function updateUserUI(snapshot){
   if(!snapshot) return;
   if(snapshot.points != null) setPointsUI(Number(snapshot.points));
   const elPts=$("#me-points"); if(elPts) elPts.textContent = snapshot.points ?? "";
-  const l1=$("#me-referrals-l1"); if(l1) l1.textContent = snapshot.referralsL1 ?? 0;
-  const l2=$("#me-referrals-l2"); if(l2) l2.textContent = snapshot.referralsL2 ?? 0;
-  const l3=$("#me-referrals-l3"); if(l3) l3.textContent = snapshot.referralsL3 ?? 0;
+  $("#me-referrals-l1")?.textContent = snapshot.referralsL1 ?? 0;
+  $("#me-referrals-l2")?.textContent = snapshot.referralsL2 ?? 0;
+  $("#me-referrals-l3")?.textContent = snapshot.referralsL3 ?? 0;
+
   const list=$("#me-referrals-list");
   if(list && Array.isArray(snapshot.latestReferrals)){
     list.innerHTML = snapshot.latestReferrals.map(r=>{
@@ -346,23 +337,22 @@ function updateUserUI(snapshot){
     }).join("") || `<li><em>Pas encore de filleuls</em></li>`;
   }
 }
+let pollTimer=null;
 function startUserPolling(){
   const uid = ownUserId();
-  if(!uid) return; // pas encore inscrit
-  const updateMe = async ()=> updateUserUI(await fetchUserSnapshot(uid));
-  updateMe(); setInterval(updateMe, 5000); // toutes les 5s
+  if(!uid) return;
+  const tick = async ()=> updateUserUI(await fetchUserSnapshot(uid));
+  if(pollTimer) clearInterval(pollTimer);
+  tick(); pollTimer = setInterval(tick, 5000);
 }
 
-/* -------------------- “Login doux” & Anti-doublons UX -------------------- */
-/** Sauvegarde identité pour reconnaitre l'utilisateur au prochain chargement */
+/* -------------------- Mémoire identité & login doux -------------------- */
 function rememberIdentity({email, phone, country, channels}){
   if(email) setLS("email", email);
   if(phone) setLS("phone", phone);
   if(country) setLS("country", country);
   if(channels) setLS("channels", channels);
 }
-
-/** Préremplir le formulaire si on retrouve des infos locales */
 function prefillFormIfAny(form){
   if(!form) return;
   const email = getLS("email",""); if(email && form.elements.email) form.elements.email.value = email;
@@ -376,11 +366,6 @@ function prefillFormIfAny(form){
     });
   }
 }
-
-/** “Retrouver mon compte” (facultatif): 
- *  - Ajoute un petit formulaire modal #login-form avec inputs name="email"/"phone" et un bouton [data-action="login"]
- *  - On tente un register avec email/phone + placeholders -> renverra ALREADY_REGISTERED et userId
- */
 async function softLogin(email, phone){
   if(!email && !phone){ toast("Entre un email ou un téléphone."); return; }
   const payload = {
@@ -409,41 +394,39 @@ async function softLogin(email, phone){
   }
 }
 
-/* -------------------- Formulaire (REGISTER) -------------------- */
+/* -------------------- Formulaire d’inscription -------------------- */
 (function formInit(){
   const form=$("#signup-form"); 
   if(!form){ startUserPolling(); return; }
 
-  // Récupère z/rc/ref sur la landing pour construire upline
+  // Upline depuis URL (z/rc/ref) → LS
   const url = new URL(location.href);
   const z  = url.searchParams.get("z");
   const rc = url.searchParams.get("rc");
   const ref= url.searchParams.get("ref");
-
   let chain = [];
   if(z) chain = uplineFromChainToken(z);
   else if(rc) chain = rc.split(",").filter(Boolean);
   else if(ref) chain = [ref];
-
   if(chain.length){
-    setLS("upline", chain);         // chaîne illimitée pour admin
-    $("#referrerId") && ($("#referrerId").value = chain[0]); // L1 pour compat si champ présent
+    setLS("upline", chain);
+    $("#referrerId") && ($("#referrerId").value = chain[0]); // compat si le champ existe
   }
 
-  // Pays par défaut = Lituanie (si rien choisi)
+  // Pays par défaut = Lituanie si rien choisi
   if(form.elements.country && !form.elements.country.value){
     form.elements.country.value = "Lituanie";
   }
 
-  // Préremplir à partir du localStorage si on a déjà des infos
+  // Préremplir (email, phone, country, channels)
   prefillFormIfAny(form);
 
-  // Bind partages (si boutons présents dans le formulaire)
+  // Bind partages
   $("[data-action='share-whatsapp']")?.addEventListener("click", shareWhatsApp);
   $("[data-action='share-email']")?.addEventListener("click", shareEmail);
   $("[data-action='copy-ref']")?.addEventListener("click", copyReferral);
 
-  // Bouton “Retrouver mon compte” (si présent)
+  // Login doux (si la modale existe dans ton HTML)
   $("[data-action='login']")?.addEventListener("click", async (e)=>{
     e.preventDefault();
     const email = ($("#login-form input[name='email']")||{}).value || "";
@@ -451,24 +434,32 @@ async function softLogin(email, phone){
     await softLogin(email.trim(), phone.trim());
   });
 
+  // Anti double-submit
+  let submitting=false;
+
   form.addEventListener("submit", async (e)=>{
     e.preventDefault();
+    if(submitting) return;
+    submitting=true;
+
     const success=$("#signup-success"), error=$("#signup-error");
     success?.setAttribute("hidden",""); error?.setAttribute("hidden","");
 
     const fd = new FormData(form);
     const payload = Object.fromEntries(fd.entries());
 
-    // Lire les canaux par cases à cocher
+    // Canaux (cases)
     const channels = $$("input[name='contact']:checked", form).map(x=>x.value);
     payload.contactAll = channels.join(",");
 
     if(!countryIsEU(payload.country)){
       error.textContent="Pays de résidence non éligible (UE uniquement).";
-      return error.removeAttribute("hidden");
+      error?.removeAttribute("hidden");
+      submitting=false; 
+      return;
     }
 
-    const upline = getLS("upline", []); // toute la chaîne
+    const upline = getLS("upline", []);
     const resPayload = {
       action: "register",
       firstName: payload.firstName,
@@ -477,8 +468,8 @@ async function softLogin(email, phone){
       phone: payload.phone,
       country: payload.country,
       contactAll: payload.contactAll,
-      referrerId: (upline[0]||""),               // L1 réel
-      refChain: (upline.slice(1)||[]).join(","), // L2, L3, ...
+      referrerId: (upline[0]||""),
+      refChain: (upline.slice(1)||[]).join(","),
       fingerprint: simpleFingerprint(),
       campaign: payload.campaign || "",
       userAgent: navigator.userAgent,
@@ -507,7 +498,7 @@ async function softLogin(email, phone){
         toast("Inscription réussie ✅");
         startUserPolling();
       }else if(res && res.code==="ALREADY_REGISTERED"){
-        // Anti-doublon: on récupère l'user et on sync
+        // Anti-doublon UX douce : on récupère l'user et on sync
         setLS("userId", res.userId);
         rememberIdentity({ 
           email: payload.email, 
@@ -527,38 +518,42 @@ async function softLogin(email, phone){
       console.error(err);
       error.textContent="Réseau indisponible. Merci de réessayer.";
       error?.removeAttribute("hidden");
+    }finally{
+      submitting=false;
     }
   });
 })();
 
-/* -------------------- Ready: hydrate & polling -------------------- */
+/* -------------------- Hydrate, polling & interactions globales -------------------- */
 document.addEventListener("DOMContentLoaded", ()=>{
-  // si déjà loggé, prépare le lien court à copier
+  // Préparer le lien court si déjà loggé
   const uid = ownUserId();
   const refInput=$("#ref-link");
   if(refInput && uid){ refInput.value = buildReferralLinkShort(uid,"cp"); }
+
   setPointsUI(getLS("points_ui", 1));
   startUserPolling();
 
-  // CTA de la modale “Gagner plus de points”
+  // Boutons de partage (header/ailleurs)
+  $("[data-action='share-whatsapp']")?.addEventListener("click", shareWhatsApp);
+  $("[data-action='share-email']")?.addEventListener("click", shareEmail);
+  $("[data-action='copy-ref']")?.addEventListener("click", copyReferral);
+
+  // CTA modale “Gagner plus de points”
   $("#cta-more-points")?.addEventListener("click", ()=>{
     $("#congrats-modal")?.setAttribute("hidden","");
     document.querySelector("#section-points")?.scrollIntoView({behavior:"smooth"});
   });
-});
 
-/* -------------------- Bind boutons globaux -------------------- */
-document.addEventListener("DOMContentLoaded", ()=>{
-  $("[data-action='share-whatsapp']")?.addEventListener("click", shareWhatsApp);
-  $("[data-action='share-email']")?.addEventListener("click", shareEmail);
-  $("[data-action='copy-ref']")?.addEventListener("click", copyReferral);
-});
+  // Online / offline feedback
+  window.addEventListener("offline", ()=> toast("Connexion perdue. Certaines actions seront en attente."));
+  window.addEventListener("online",  ()=> toast("Connexion rétablie ✅"));
 
-/* -------------------- Stats live (FOMO compteur) -------------------- */
-(async function syncStats(){
-  try{
-    const u=new URL(API.BASE); u.searchParams.set("action","stats");
-    const r=await fetchJSON(u.toString(), {method:"GET"});
-    const c=$("#counter-left"); if(c && r && r.totalParticipants!=null) c.textContent=r.totalParticipants.toLocaleString("fr-FR");
-  }catch{}
-})();
+  // Rafraîchit le snapshot quand l’onglet revient au 1er plan
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState==="visible"){
+      const uid = ownUserId();
+      if(uid) fetchUserSnapshot(uid).then(updateUserUI).catch(()=>{});
+    }
+  });
+});
