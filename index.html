@@ -1,364 +1,413 @@
-<!doctype html>
-<html lang="fr" data-theme="dark">
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Eurovilla.lt — Gagne la villa d’exception à Mougins</title>
-  <meta name="description" content="Inscris-toi gratuitement au tirage Eurovilla.lt : somptueuse villa à Mougins (550 m², 6 suites, piscine, vues), valeur ~5 900 000 €. Multiplie tes points via WhatsApp, email et parrainage. Tirage le 31 octobre 2025.">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Eurovilla.lt — Tente ta chance et gagne la villa</title>
+  <meta name="description" content="Inscris-toi gratuitement, partage ton lien et augmente tes points. Tirage officiel le 31 octobre 2025." />
   <link rel="stylesheet" href="styles.css" />
-  <meta property="og:title" content="Gagne une villa à Mougins — Eurovilla.lt">
-  <meta property="og:description" content="Tirage officiel avec huissier. 550 m², 6 suites, piscine, valeur ~5 900 000 €. Inscris-toi et multiplie tes points !">
-  <meta property="og:image" content="assets/cover-villa.jpg">
-  <meta property="og:type" content="website">
-  <link rel="icon" type="image/png" href="assets/favicon.png" />
-  <script defer src="app.js"></script>
+  <link rel="preload" as="image" href="Images/Image%20villa%20(1).jpg" />
+  <style>
+    /* Petits styles de structure pour que ce soit directement exploitable */
+    :root {
+      --bg: #0b0d10; --text: #e9f0f3; --muted:#a8b3ba; --acc:#2dd4bf; --acc2:#60a5fa;
+      --card:#11161b; --stroke:#1f2937;
+    }
+    [data-theme="light"] { --bg:#ffffff; --text:#0f172a; --muted:#475569; --card:#f8fafc; --stroke:#e2e8f0; }
+    html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family:system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; }
+    a { color:var(--acc2); text-decoration:none; }
+    .container { width:min(1100px, 92vw); margin:0 auto; }
+    header { position:sticky; top:0; z-index:40; background:rgba(10,14,18,.8); backdrop-filter:saturate(1.4) blur(8px); border-bottom:1px solid var(--stroke); }
+    [data-theme="light"] header { background:rgba(255,255,255,.7); }
+    .nav { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 0; }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.2px; }
+    .nav a { color:var(--text); opacity:.9; padding:8px 10px; border-radius:10px; }
+    .cta { background:linear-gradient(135deg,var(--acc),var(--acc2)); color:#001b2b; font-weight:800; padding:10px 16px; border-radius:14px; border:0; cursor:pointer; }
+    .ghost { border:1px solid var(--stroke); background:transparent; color:var(--text); font-weight:700; padding:9px 14px; border-radius:12px; cursor:pointer; }
+
+    .hero { display:grid; grid-template-columns:1.1fr .9fr; gap:28px; padding:36px 0; align-items:center; }
+    .hero h1 { font-size:clamp(28px, 6vw, 46px); line-height:1.06; margin:.1em 0 .3em; }
+    .hero p.muted { color:var(--muted); }
+    .hero-card { background:var(--card); border:1px solid var(--stroke); border-radius:18px; overflow:hidden; }
+    .hero-media { aspect-ratio: 16/10; background: #0a0f14 center/cover no-repeat; }
+    .hero-media img { width:100%; height:100%; object-fit:cover; display:block; }
+    .mini-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:12px; }
+    .step { background:var(--card); border:1px solid var(--stroke); border-radius:14px; padding:10px 12px; font-size:14px; }
+    .badge { display:inline-flex; align-items:center; gap:8px; font-weight:800; background:rgba(45,212,191,.15); color:#00dbc0; border:1px solid rgba(45,212,191,.35); padding:6px 10px; border-radius:999px; }
+
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+    .card { background:var(--card); border:1px solid var(--stroke); border-radius:18px; padding:18px; }
+    .card h3 { margin:0 0 8px; }
+    .field { display:flex; flex-direction:column; gap:7px; margin:12px 0; }
+    label { font-size:14px; color:var(--muted); }
+    input, select, textarea { padding:12px 12px; border-radius:12px; border:1px solid var(--stroke); background:#0c1217; color:#eaf2f5; }
+    [data-theme="light"] input,[data-theme="light"] select,[data-theme="light"] textarea { background:#fff; color:#0f172a; }
+    .checks { display:flex; gap:12px; flex-wrap:wrap; }
+    .checks label { color:var(--text); display:flex; align-items:center; gap:8px; font-weight:600; }
+    .help { color:var(--muted); font-size:13px; margin-top:6px; }
+
+    .progress { background:#0f172a; border-radius:14px; border:1px solid var(--stroke); overflow:hidden; }
+    [data-theme="light"] .progress { background:#eef2f6; }
+    .bar { height:14px; width:0%; background:linear-gradient(90deg,var(--acc),var(--acc2)); transition: width .5s ease; }
+    .row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+
+    .gallery { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+    .gallery img { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:12px; border:1px solid var(--stroke); }
+
+    .muted { color:var(--muted); }
+    .pill { display:inline-block; background:rgba(96,165,250,.15); color:#78b2ff; border:1px solid rgba(96,165,250,.35); padding:6px 10px; border-radius:999px; font-weight:800; }
+    .countdown { display:flex; gap:16px; margin-top:8px; }
+    .tbox { text-align:center; background:var(--card); border:1px solid var(--stroke); border-radius:12px; padding:10px 16px; min-width:78px; }
+    .tbox b { font-size:24px; display:block; }
+
+    .faq dt { font-weight:800; margin-top:14px; }
+    .faq dd { margin:6px 0 16px 0; color:var(--muted); }
+
+    footer { margin:40px 0 60px; padding-top:18px; border-top:1px dashed var(--stroke); color:var(--muted); font-size:14px; }
+
+    /* Modales */
+    .modal { position:fixed; inset:0; display:grid; place-items:center; background:rgba(2,6,11,.6); backdrop-filter: blur(8px); z-index:60; }
+    .modal[hidden] { display:none; }
+    .modal .sheet { width:min(680px,92vw); background:var(--bg); color:var(--text); border:1px solid var(--stroke); border-radius:18px; padding:16px; }
+    .modal .head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+    .modal .body { max-height:65vh; overflow:auto; border-radius:12px; }
+
+    /* Responsive */
+    @media (max-width: 900px){
+      .hero { grid-template-columns:1fr; }
+      .grid { grid-template-columns:1fr; }
+      .mini-steps { grid-template-columns:1fr; }
+      .gallery { grid-template-columns:repeat(2,1fr); }
+      .row { flex-direction:column; align-items:flex-start; }
+    }
+
+    /* Confettis (si activés dans app.js) */
+    @keyframes fall { to { transform: translateY(110vh) rotate(360deg); opacity:.8; } }
+  </style>
 </head>
 <body>
-  <!-- Topbar simple -->
-  <div class="topbar" role="status" aria-live="polite">
-    🎉 Félicitations à nos nouveaux inscrits ! Tirage au sort prévu le 31 octobre 2025
-  </div>
 
-  <!-- Header -->
-  <header class="site-header">
-    <div class="container header-grid">
-      <a class="brand" href="#">
-        <img src="assets/logo-eurovilla.svg" alt="Eurovilla.lt" height="36">
-      </a>
-      <nav class="nav" aria-label="Navigation principale">
-        <a href="#participer">Je participe</a>
-        <a href="#points">Gagner des points</a>
-        <a href="#donateur">Nicolas</a>
-        <a href="#comment-ca-marche">Comment ça marche</a>
+  <!-- HEADER -->
+  <header>
+    <div class="container nav">
+      <div class="brand">
+        <img src="Images/Image%20villa%20(1).jpg" alt="Eurovilla logo" style="width:34px;height:34px;border-radius:8px;object-fit:cover;border:1px solid var(--stroke)" />
+        <a href="#" style="font-size:18px;">Eurovilla.lt</a>
+      </div>
+      <nav style="display:flex;gap:6px;align-items:center;">
+        <a href="#form">Je participe</a>
+        <a href="#section-points">Gagner des points</a>
         <a href="#villa">La villa</a>
         <a href="#faq">FAQ</a>
+        <button id="toggle-theme" class="ghost" title="Mode clair/sombre">☀︎/🌙</button>
+        <a href="#form"><button class="cta">Je tente ma chance</button></a>
       </nav>
-      <div class="header-cta">
-        <a class="btn cta" href="#participer">Je tente ma chance</a>
-        <button class="mode-toggle" id="toggle-theme" aria-label="Basculer mode clair/sombre">☀︎ / 🌙</button>
-      </div>
     </div>
   </header>
 
-  <!-- Countdown FOMO -->
-  <section class="datebar" role="note">
-    <div class="container countdown">
-      <strong>Tirage le 31 octobre 2025</strong>
-      <div class="countdown-box">
-        <span>Il reste</span>
-        <div class="countdown-ticks" id="countdown" aria-live="polite">
-          <!-- app.js injectera Jours / Heures / Minutes / Secondes -->
-          <div class="tick"><strong id="d">—</strong><small>J</small></div>
-          <div class="tick"><strong id="h">—</strong><small>H</small></div>
-          <div class="tick"><strong id="m">—</strong><small>Min</small></div>
-          <div class="tick"><strong id="s">—</strong><small>Sec</small></div>
-        </div>
-      </div>
-    </div>
-  </section>
+  <!-- HERO -->
+  <section class="container hero">
+    <div>
+      <div class="badge">🎉 Félicitations à nos nouveaux inscrits ! &nbsp;<span class="muted">Tirage au sort prévu le 31 octobre 2025</span></div>
+      <h1>Gagne la villa de Nicolas Bréant dans le Sud de la France</h1>
+      <p class="muted">150 m² • 4 chambres • 2 salles de bains • Piscine • Jardin 800 m² • Quartier résidentiel calme • Valeur estimée ~ 500&nbsp;000&nbsp;€</p>
 
-  <!-- Hero -->
-  <section class="hero">
-    <div class="container hero-grid">
-      <div class="hero-copy">
-        <h1>Bienvenue ! Tente de gagner la villa de <span class="accent">Nicolas Bréant</span> à Mougins</h1>
-        <p class="lead">
-          550 m² habitables • 6 suites • Piscine chauffée • Vues dégagées • Environnement calme.
-          Valeur estimée : <strong>5 900 000 €</strong>.
-        </p>
-        <ul class="bullets">
-          <li>Inscription <strong>gratuite</strong></li>
-          <li>Gagne des <strong>points</strong> via WhatsApp, email & parrainage</li>
-          <li>Tirage légal & <strong>transparent</strong> (huissier, attestation publiée)</li>
-        </ul>
-        <a class="cta xl" href="#participer">🎟️ Je tente ma chance</a>
+      <div class="countdown" aria-label="Compte à rebours">
+        <div class="tbox"><b id="d">00</b><small>jours</small></div>
+        <div class="tbox"><b id="h">00</b><small>heures</small></div>
+        <div class="tbox"><b id="m">00</b><small>min</small></div>
+        <div class="tbox"><b id="s">00</b><small>sec</small></div>
       </div>
+
+      <div class="mini-steps">
+        <div class="step">✅ <b>Étape 1</b> — Inscris-toi gratuitement</div>
+        <div class="step">🏆 <b>Étape 2</b> — Partage ton lien et gagne des points</div>
+        <div class="step">🎟️ <b>Étape 3</b> — Tirage officiel (huissier) + remise des clés</div>
+      </div>
+
+      <div style="margin-top:12px;color:var(--muted)">Déjà <b id="counter-left">0</b> participants. Rejoins l’aventure et augmente tes points !</div>
+    </div>
+
+    <div class="hero-card">
       <div class="hero-media">
-        <figure class="media-card">
-          <img src="assets/hero-villa.jpg" alt="Villa d’exception à Mougins avec piscine" />
-          <figcaption>Visite 360° & galerie photos</figcaption>
-          <button class="play360" aria-label="Ouvrir la vidéo 360°" data-open="modal-360">Voir la vidéo 360°</button>
-        </figure>
-        <div class="hero-stats">
-          <div class="stat"><span>5 900 000 €</span><small>Valeur estimée</small></div>
-          <div class="stat"><span>31/10/2025</span><small>Date du tirage</small></div>
-          <div class="stat"><span>+ points</span><small>WhatsApp & email</small></div>
-        </div>
+        <img src="Images/Image%20villa%20(2).jpg" alt="Vue de la villa et piscine" />
+      </div>
+      <div style="padding:14px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="ghost" data-open="modal-360">▶︎ Voir la vidéo 360°</button>
+        <a href="#villa"><button class="ghost">📸 Voir la galerie</button></a>
+        <a href="#form"><button class="cta">Je tente ma chance</button></a>
       </div>
     </div>
   </section>
 
-  <!-- (1) FORMULAIRE EN PREMIER -->
-  <section id="participer" class="signup">
-    <div class="container">
-      <h2>🎟️ Inscription</h2>
-      <p>Participe gratuitement maintenant. Tu recevras ton <strong>lien de parrainage</strong> pour gagner plus de points.</p>
-      <form id="signup-form" class="form" aria-describedby="privacy-note">
-        <div class="grid-2">
+  <!-- SECTION: FORMULAIRE -->
+  <section id="form" class="container grid" style="margin-top:16px;">
+    <!-- FORM -->
+    <div class="card">
+      <h3>🎟️ Inscription — c’est gratuit</h3>
+      <p class="muted">+18 ans, résidents de l’Union Européenne. Pas de paiement pour participer. Tu recevras ton lien de parrainage à la fin.</p>
+
+      <form id="signup-form" autocomplete="on" novalidate>
+        <!-- anti-compat referrerId (si jamais le back le lit ; sinon ignoré) -->
+        <input type="hidden" id="referrerId" name="referrerId" />
+        <input type="hidden" id="fingerprint" name="fingerprint" />
+
+        <div class="grid">
           <div class="field">
             <label for="firstName">Prénom</label>
-            <input id="firstName" name="firstName" type="text" placeholder="Ex : Lina" required>
+            <input id="firstName" name="firstName" placeholder="Ex : Lina" required />
           </div>
           <div class="field">
             <label for="lastName">Nom</label>
-            <input id="lastName" name="lastName" type="text" placeholder="Ex : Martin" required>
+            <input id="lastName" name="lastName" placeholder="Ex : Martin" required />
           </div>
         </div>
-        <div class="grid-2">
+
+        <div class="grid">
           <div class="field">
             <label for="email">Email</label>
-            <input id="email" name="email" type="email" inputmode="email" placeholder="nom@exemple.com" required>
+            <input id="email" type="email" name="email" placeholder="nom@exemple.com" required />
           </div>
           <div class="field">
             <label for="phone">Téléphone</label>
-            <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="+33 6 12 34 56 78" required>
+            <input id="phone" type="tel" name="phone" placeholder="+370 6 12 34 567" required />
           </div>
         </div>
 
-        <div class="grid-2">
-          <div class="field">
-            <label for="contactAll">Contact</label>
-            <select id="contactAll" name="contactAll" required>
-              <option value="" disabled selected>Choisis tes canaux</option>
-              <option value="email-sms-whatsapp">Email + SMS + WhatsApp</option>
-              <option value="email-sms">Email + SMS</option>
-              <option value="email-only">Email seulement</option>
-            </select>
-            <small>On te contactera par les canaux choisis pour ne rien manquer.</small>
-          </div>
+        <div class="grid">
           <div class="field">
             <label for="country">Pays de résidence (UE)</label>
             <select id="country" name="country" required>
-              <option value="" disabled selected>Sélectionner un pays</option>
-              <option>Allemagne</option><option>Autriche</option><option>Belgique</option><option>Bulgarie</option>
-              <option>Chypre</option><option>Croatie</option><option>Danemark</option><option>Espagne</option>
-              <option>Estonie</option><option>Finlande</option><option>France</option><option>Grèce</option>
-              <option>Hongrie</option><option>Irlande</option><option>Italie</option><option>Lettonie</option>
-              <option>Lituanie</option><option>Luxembourg</option><option>Malte</option><option>Pays-Bas</option>
-              <option>Pologne</option><option>Portugal</option><option>Roumanie</option><option>Slovaquie</option>
-              <option>Slovénie</option><option>Suède</option>
+              <option value="">Sélectionne ton pays</option>
+              <option value="Allemagne">Allemagne</option>
+              <option value="Autriche">Autriche</option>
+              <option value="Belgique">Belgique</option>
+              <option value="Bulgarie">Bulgarie</option>
+              <option value="Chypre">Chypre</option>
+              <option value="Croatie">Croatie</option>
+              <option value="Danemark">Danemark</option>
+              <option value="Espagne">Espagne</option>
+              <option value="Estonie">Estonie</option>
+              <option value="Finlande">Finlande</option>
+              <option value="France">France</option>
+              <option value="Grèce">Grèce</option>
+              <option value="Hongrie">Hongrie</option>
+              <option value="Irlande">Irlande</option>
+              <option value="Italie">Italie</option>
+              <option value="Lettonie">Lettonie</option>
+              <option value="Lituanie" selected>Lituanie</option>
+              <option value="Luxembourg">Luxembourg</option>
+              <option value="Malte">Malte</option>
+              <option value="Pays-Bas">Pays-Bas</option>
+              <option value="Pologne">Pologne</option>
+              <option value="Portugal">Portugal</option>
+              <option value="Roumanie">Roumanie</option>
+              <option value="Slovaquie">Slovaquie</option>
+              <option value="Slovénie">Slovénie</option>
+              <option value="Suède">Suède</option>
             </select>
+            <div class="help">Par défaut : Lituanie.</div>
+          </div>
+
+          <div class="field">
+            <label>Comment pouvons-nous te contacter ?</label>
+            <div class="checks">
+              <label><input type="checkbox" name="contact" value="email" checked /> Email</label>
+              <label><input type="checkbox" name="contact" value="sms" /> SMS</label>
+              <label><input type="checkbox" name="contact" value="whatsapp" /> WhatsApp</label>
+              <label><input type="checkbox" name="contact" value="call" /> Appel</label>
+              <!-- Telegram possible mais pas mis en avant -->
+            </div>
+            <div class="help">Tu peux cocher plusieurs canaux. Ça évite de te rater si tu gagnes.</div>
           </div>
         </div>
 
-        <div class="field checkbox">
-          <input id="acceptRules" type="checkbox" required>
-          <label for="acceptRules">J’ai lu et j’accepte le <a href="reglement.html" target="_blank" rel="noopener">règlement du tirage</a> & la politique de confidentialité.</label>
+        <label style="display:flex;align-items:center;gap:10px;margin-top:10px;">
+          <input type="checkbox" required />
+          <span>J’ai lu et j’accepte le <a href="#reglement">règlement</a> & la politique de confidentialité.</span>
+        </label>
+
+        <div class="row" style="margin-top:16px;">
+          <button type="submit" class="cta">Je valide mon inscription</button>
+          <button type="button" class="ghost" data-open="modal-360">Voir la vidéo 360°</button>
         </div>
 
-        <!-- remplis par app.js -->
-        <input type="hidden" id="referrerId" name="referrerId" value="">
-        <input type="hidden" id="fingerprint" name="fingerprint" value="">
-        <input type="hidden" id="campaign" name="campaign" value="display_q4_2025">
-
-        <button class="btn xl" type="submit">Je valide mon inscription</button>
-        <p id="privacy-note" class="privacy">Inscription gratuite. Une seule participation par personne. Les points s’ajoutent quand vos invités s’inscrivent vraiment.</p>
-
-        <p class="success" id="signup-success" role="alert" hidden>Inscription validée 🎉 Ton lien de parrainage arrive…</p>
-        <p class="error" id="signup-error" role="alert" hidden>Oups, un petit contretemps. Réessaie dans un instant.</p>
+        <p id="signup-success" class="pill" hidden>✅ Inscription prise en compte. Regarde la section “Gagner des points”.</p>
+        <p id="signup-error" class="pill" style="background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#ff7b7b" hidden>❌</p>
       </form>
     </div>
-  </section>
 
-  <!-- (2) MULTIPLIER SES POINTS + PROGRESSION DYNAMIQUE -->
-  <section id="points" class="points">
-    <div class="container">
-      <h2>Gagne plus de <span class="accent">points</span></h2>
-      <p>Invite tes proches : chaque inscription via ton lien augmente tes points et ta probabilité au tirage.</p>
-
-      <!-- Barre de progression lisse (mise à jour par app.js) -->
-      <div class="progress-wrap" aria-label="Progression de tes points" aria-live="polite">
-        <div class="progress-head">
-          <span>Progression</span>
-          <strong id="progress-label">0%</strong>
+    <!-- TES POINTS / PARTAGES -->
+    <div class="card" id="section-points">
+      <h3>🏆 Tes points</h3>
+      <div class="row" style="align-items:flex-end;">
+        <div>
+          <div style="font-size:42px;font-weight:900"><span id="score-points">1</span> pts</div>
+          <div class="muted">Plus tu as de points, plus ta probabilité au tirage augmente (sans éliminer personne).</div>
         </div>
-        <div class="progress">
-          <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
-        </div>
-        <div class="progress-steps">
-          <span>0 pt</span><span>5 pts</span><span>15 pts</span><span>30 pts</span><span>50 pts</span>
-        </div>
-      </div>
-
-      <div class="cards">
-        <article class="card">
-          <h3>Partage WhatsApp</h3>
-          <p>Envoie ton lien à tes amis. Chaque ami qui s’inscrit grâce à toi te rapporte <strong>+2 points</strong>.</p>
-          <button class="btn outline" data-action="share-whatsapp">Partager sur WhatsApp</button>
-        </article>
-        <article class="card">
-          <h3>Invitation par email</h3>
-          <p>Un petit message personnalisé fait la différence. Chaque inscription validée = <strong>+2 points</strong>.</p>
-          <button class="btn outline" data-action="share-email">Inviter par email</button>
-        </article>
-        <article class="card">
-          <h3>Lien de parrainage</h3>
-          <p>Ton lien unique : chaque filleul inscrit & confirmé = <strong>+5 points</strong>.</p>
-          <div class="ref-row">
-            <input id="ref-link" class="ref-input" type="text" readonly value="https://eurovilla.lt/join?ref=TON_ID" aria-label="Lien de parrainage">
-            <button class="btn" data-action="copy-ref">Copier</button>
+        <div style="flex:1">
+          <div class="progress" aria-label="Progression">
+            <div id="progress-bar" class="bar" style="width: 2%;"></div>
           </div>
-          <small>Astuce : explique pourquoi ce projet te plaît, ça donne envie de participer 😉</small>
-        </article>
-      </div>
-
-      <div class="score">
-        <div class="score-box">
-          <div>🎯 Tes points :</div>
-          <div class="score-value" id="score-points" aria-live="polite">1</div>
+          <div class="row" style="margin-top:6px;">
+            <small id="progress-label">2%</small>
+            <small class="muted">Objectif visuel : 50 pts</small>
+          </div>
         </div>
-        <p class="score-note">Les points augmentent ta probabilité au tirage, mais tout le monde reste en lice.</p>
+      </div>
+
+      <div class="grid" style="margin-top:8px;">
+        <div>
+          <h4>Partage rapide</h4>
+          <p class="muted">Chaque ami qui s’inscrit via ton lien te rapporte des points.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="cta" data-action="share-whatsapp">Partager via WhatsApp</button>
+            <button class="ghost" data-action="share-email">Inviter par email</button>
+            <button class="ghost" data-action="copy-ref">Copier mon lien</button>
+          </div>
+          <div class="field" style="margin-top:10px;">
+            <label for="ref-link">Ton lien personnel</label>
+            <input id="ref-link" readonly value="" />
+            <div class="help">Lien court : `?r=xxxxx&z=...` généré automatiquement.</div>
+          </div>
+        </div>
+
+        <div>
+          <h4>Suivi</h4>
+          <ul style="margin:0;padding-left:18px;" id="me-referrals-list">
+            <li><em>Pas encore de filleuls</em></li>
+          </ul>
+          <div class="row" style="margin-top:8px;">
+            <small class="muted">Niveau 1 : <b id="me-referrals-l1">0</b></small>
+            <small class="muted">Niveau 2 : <b id="me-referrals-l2">0</b></small>
+            <small class="muted">Niveau 3 : <b id="me-referrals-l3">0</b></small>
+          </div>
+          <div class="help">Les niveaux 2 et 3 te donnent aussi des points (bonus).</div>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- (3) NICOLAS AVANT "COMMENT ÇA MARCHE" -->
-  <section id="donateur" class="donor">
-    <div class="container donor-grid">
-      <img class="donor-photo" src="assets/nicolas-breant.jpg" alt="Photo de Nicolas Bréant" />
-      <div>
-        <h2>Nicolas Bréant — entrepreneur & esprit partageur</h2>
-        <p>
-          Après la vente de sa start-up dans le secteur médical, Nicolas a beaucoup voyagé et partage aujourd’hui sa vie entre Lisbonne et Montréal.
-          Il a choisi de transformer cette villa d’exception en Côte d’Azur en une opportunité simple et joyeuse : <em>la donner via un tirage
-          au sort légal et transparent</em>, orchestré par Eurovilla.lt.
-        </p>
-        <div class="quote">« J’aimerais que cette maison fasse le bonheur de quelqu’un. »</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- (4) COMMENT ÇA MARCHE -->
-  <section id="comment-ca-marche" class="howitworks">
-    <div class="container">
-      <h2>Comment ça marche ?</h2>
-      <ol class="steps">
-        <li>
-          <h3>1) Inscris-toi</h3>
-          <p>Formulaire simple et gratuit (+18 ans). Tu reçois ton lien de parrainage.</p>
-        </li>
-        <li>
-          <h3>2) Gagne des points</h3>
-          <p>Partage par <strong>WhatsApp</strong> & <strong>email</strong>, et utilise ton <strong>lien de parrainage</strong>. Les points s’ajoutent lorsque tes invités s’inscrivent.</p>
-        </li>
-        <li>
-          <h3>3) Tirage — 31/10/2025</h3>
-          <p>Procédure à huis clos, sous supervision d’un professionnel habilité. Attestation publiée.</p>
-        </li>
-        <li>
-          <h3>4) Annonce & remise des clés</h3>
-          <p>Annonce officielle, contact par email/SMS/WhatsApp/appel et accompagnement jusqu’à la remise des clés.</p>
-        </li>
-      </ol>
-      <div class="badge-row">
-        <span class="badge">Huissier</span>
-        <span class="badge">Transparence</span>
-        <span class="badge">Inscription gratuite</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- (5) LA VILLA — Mougins -->
-  <section id="villa" class="villa">
-    <div class="container villa-grid">
-      <div>
-        <h2>La villa — Mougins (Alpes-Maritimes, 06250)</h2>
-        <ul class="specs">
-          <li><strong>Valeur</strong> : 5 900 000 €</li>
-          <li><strong>Surface habitable</strong> : 550 m² (≈ 5 920 sq ft)</li>
-          <li><strong>Terrain</strong> : 3 176 m² (≈ 33 977 sq ft)</li>
-          <li><strong>Suites</strong> : 6 (chambres & salles d’eau)</li>
-          <li><strong>Confort</strong> : Piscine chauffée, salle de cinéma, salle de sport, double garage</li>
-          <li><strong>Atouts</strong> : Vue dégagée (montagnes, collines), exposition sud-ouest</li>
-          <li><strong>Performance</strong> : DPE A (32) / GES A (1)</li>
-          <li><strong>Réf.</strong> : VBE230011</li>
+  <!-- SECTION: LA VILLA -->
+  <section id="villa" class="container" style="margin-top:18px;">
+    <div class="grid">
+      <div class="card">
+        <h3>La villa</h3>
+        <p class="muted">Mougins — Alpes-Maritimes (06250). Luxueuse propriété rénovée, vue dégagée sur collines & montagnes. Proche Cannes (9 km) et aéroport de Nice (30 min).</p>
+        <ul>
+          <li><b>Valeur estimée</b> : 5&nbsp;900&nbsp;000&nbsp;€</li>
+          <li><b>Surface habitable</b> : 550 m² — <b>Terrain</b> : 3&nbsp;176 m²</li>
+          <li><b>Suites</b> : 6 (dont 1 familiale) — <b>SDB</b> : 6</li>
+          <li><b>Prestations</b> : piscine chauffée, salle de cinéma, salle de sport, double garage</li>
+          <li><b>Classe énergie</b> : DPE A (32) / GES A (1)</li>
         </ul>
-        <p>Cadre privilégié, prestations haut de gamme, terrasses ensoleillées, jardin paysager. À quelques minutes de Cannes et ~30 min de l’aéroport de Nice.</p>
+        <div class="gallery" style="margin-top:12px;">
+          <img src="Images/Image%20villa%20(3).jpg" alt="Salon lumineux" />
+          <img src="Images/Image%20villa%20(4).jpg" alt="Cuisine contemporaine" />
+          <img src="Images/Image%20villa%20(5).jpg" alt="Piscine & terrasse" />
+          <img src="Images/Image%20villa%20(6).jpg" alt="Suite parentale" />
+          <img src="Images/Image%20villa%20(7).jpg" alt="Jardin paysager" />
+          <img src="Images/Image%20villa%20(8).jpg" alt="Vue dégagée" />
+          <img src="Images/Image%20villa%20(9).jpg" alt="Espace de vie" />
+          <img src="Images/Image%20villa%20(10).jpg" alt="Terrasse ensoleillée" />
+        </div>
       </div>
-      <div class="gallery" aria-label="Galerie photos de la villa">
-        <img src="assets/gallery-1.jpg" alt="Salon baigné de lumière naturelle" />
-        <img src="assets/gallery-2.jpg" alt="Cuisine contemporaine avec larges baies vitrées" />
-        <img src="assets/gallery-3.jpg" alt="Piscine chauffée et grande terrasse ensoleillée" />
-        <img src="assets/gallery-4.jpg" alt="Suite élégante et confortable" />
+
+      <div class="card">
+        <h3>Qui est Nicolas Bréant ?</h3>
+        <p>Entrepreneur français (42 ans). Après la vente de sa start-up dans le secteur médical, il a beaucoup voyagé et partage aujourd’hui sa vie entre Lisbonne et Montréal.</p>
+        <p>Plutôt que de vendre cette maison dans le sud de la France, il a choisi un geste original et solidaire : <b>offrir la villa par tirage au sort via Eurovilla.lt</b>.</p>
+        <blockquote style="margin:10px 0 0; border-left:3px solid var(--acc); padding-left:10px;">« Je veux que cette maison fasse le bonheur de quelqu’un. »</blockquote>
+
+        <div class="card" style="margin-top:12px;">
+          <h4>Transparence</h4>
+          <ul>
+            <li>Inscription gratuite (UE, +18 ans)</li>
+            <li>Tirage avec huissier, attestation publiée</li>
+            <li>Annonce du gagnant + accompagnement jusqu’à la <b>remise des clés</b></li>
+          </ul>
+          <div style="margin-top:8px">
+            <button class="ghost" data-open="modal-360">▶︎ Voir la vidéo 360°</button>
+            <a href="#form"><button class="cta">Je participe</button></a>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- (6) FAQ conviviale -->
-  <section id="faq" class="faq">
-    <div class="container">
-      <h2>FAQ</h2>
-      <details>
-        <summary>La participation est-elle vraiment gratuite ?</summary>
-        <p>Oui. L’inscription est gratuite. Ensuite, le gagnant échange avec Eurovilla.lt au sujet d’éventuels frais administratifs, variables selon le processus retenu.</p>
-      </details>
-      <details>
-        <summary>Comment fonctionnent les points ?</summary>
-        <p>Tu obtiens des points à l’inscription, puis à chaque fois qu’un proche s’inscrit via ton lien (WhatsApp, email, parrainage). Plus de points = plus de probabilité au tirage — tout le monde participe.</p>
-      </details>
-      <details>
-        <summary>Puis-je participer plusieurs fois ?</summary>
-        <p>Non, une seule participation par personne. C’est plus simple et plus juste.</p>
-      </details>
-      <details>
-        <summary>Comment se déroule le tirage ?</summary>
-        <p>Le tirage a lieu à huis clos, sous supervision d’un professionnel habilité. Une attestation est publiée pour informer tout le monde.</p>
-      </details>
-      <details>
-        <summary>Comment serez-vous en contact avec le gagnant ?</summary>
-        <p>Par email, SMS, WhatsApp et appel si besoin. Le but est d’aller vite et simplement.</p>
-      </details>
-      <details>
-        <summary>Je peux voir la villa en vidéo ?</summary>
-        <p>Oui, une visite 360° est disponible : clique sur “Voir la vidéo 360°”.</p>
-      </details>
-    </div>
+  <!-- FAQ en dernier -->
+  <section id="faq" class="container card" style="margin-top:18px;">
+    <h3>FAQ</h3>
+    <dl class="faq">
+      <dt>La participation est-elle vraiment gratuite ?</dt>
+      <dd>Oui. Aucun paiement n’est requis pour s’inscrire. Des frais administratifs <i>éventuels</i> peuvent intervenir <b>après</b> l’annonce du gagnant (selon le processus et l’accompagnement), mais jamais pour participer.</dd>
+
+      <dt>Comment sont calculés les points ?</dt>
+      <dd>Tu obtiens des points à l’inscription. Chaque personne qui s’inscrit via <b>ton lien</b> te rapporte des points bonus. Des bonus additionnels existent pour les niveaux 2 et 3.</dd>
+
+      <dt>Comment se passe le tirage ?</dt>
+      <dd>Tirage au sort prévu le <b>31 octobre 2025</b> en présence d’un huissier. Le procès-verbal et l’attestation sont publiés sur Eurovilla.lt.</dd>
+
+      <dt>Je peux choisir plusieurs canaux de contact ?</dt>
+      <dd>Oui, coche Email / SMS / WhatsApp / Appel. Ça évite de te rater si tu es tiré au sort.</dd>
+
+      <dt>Pays de résidence éligible ?</dt>
+      <dd>Ouvert aux résidents majeurs de l’Union Européenne. Le pays par défaut dans le formulaire est “Lituanie”.</dd>
+
+      <dt>Je suis déjà inscrit(e), que faire ?</dt>
+      <dd>Si tu t’inscris de nouveau avec le même email/téléphone, on reconnait ton compte et on synchronise tes points. Tu peux aussi partager directement ton lien pour gagner des points.</dd>
+    </dl>
   </section>
 
-  <!-- CTA finale -->
-  <section class="cta-final">
-    <div class="container cta-grid">
-      <div>
-        <h2>On s’y met ?</h2>
-        <p>Valide ton inscription, récupère ton lien et invite tes proches. Bonne chance ✨</p>
-      </div>
-      <a class="btn xl" href="#participer">Je tente ma chance</a>
-    </div>
-  </section>
-
-  <!-- Footer -->
-  <footer class="site-footer">
-    <div class="container footer-grid">
-      <div class="foot-brand">
-        <img src="assets/logo-eurovilla.svg" alt="Eurovilla.lt" height="28">
-        <p class="foot-note">© Eurovilla.lt — Tirage officiel, transparence & accompagnement convivial.</p>
-      </div>
-      <nav class="foot-nav" aria-label="Navigation pied de page">
-        <a href="#participer">Je participe</a>
-        <a href="#points">Gagner des points</a>
-        <a href="#comment-ca-marche">Comment ça marche</a>
-        <a href="reglement.html" target="_blank" rel="noopener">Règlement</a>
-        <a href="#faq">FAQ</a>
-        <a href="mailto:contact@eurovilla.lt">Contact</a>
-      </nav>
-      <div class="foot-legal">
-        <p>Inscription gratuite. Données traitées conformément au RGPD.</p>
-      </div>
+  <footer class="container">
+    <div>© Eurovilla.lt — Tirage officiel, transparence & accompagnement complet.</div>
+    <div style="margin-top:6px; display:flex; gap:16px; flex-wrap:wrap;">
+      <a href="#faq">FAQ</a>
+      <a id="reglement" href="#" onclick="alert('Règlement disponible à la demande.');return false;">Règlement</a>
+      <a href="#form">Contact</a>
     </div>
   </footer>
 
-  <!-- Modale vidéo 360° -->
-  <div class="modal" id="modal-360" aria-hidden="true" hidden>
-    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-360-title">
-      <button class="modal-close" data-action="close-modal" aria-label="Fermer">×</button>
-      <h3 id="modal-360-title">Visite 360°</h3>
-      <div class="modal-body" id="modal-360-body">
-        <!-- app.js : injecte l’iFrame/lecteur 360 -->
+  <!-- MODALE: vidéo 360° (.ts) -->
+  <div id="modal-360" class="modal" hidden aria-hidden="true" role="dialog" aria-labelledby="m360-title">
+    <div class="sheet">
+      <div class="head">
+        <h4 id="m360-title" style="margin:0">Visite 360°</h4>
+        <button class="ghost" data-action="close-modal">✕</button>
+      </div>
+      <div id="modal-360-body" class="body">
+        <!-- lecteur vidéo intégré -->
+        <video controls preload="metadata" style="width:100%;border-radius:12px;outline:none;border:1px solid var(--stroke);background:#000" poster="Images/Image%20villa%20(11).jpg">
+          <source src="vidéos/vidéo%20360.ts" type="video/mp2t" />
+          Votre navigateur ne supporte pas la lecture directe du format .ts. Pensez à ouvrir sur un navigateur moderne ou à convertir en MP4/HLS.
+        </video>
       </div>
     </div>
-    <div class="modal-backdrop" data-action="close-modal"></div>
   </div>
+
+  <!-- MODALE: Félicitations post-inscription -->
+  <div id="congrats-modal" class="modal" hidden aria-hidden="true">
+    <div class="sheet">
+      <div class="head">
+        <h4 style="margin:0">🎉 Félicitations, inscription confirmée</h4>
+        <button class="ghost" data-close="modal">✕</button>
+      </div>
+      <div class="body" style="padding:10px 6px;">
+        <p>Tu as bien été ajouté(e) au tirage. Pour <b>augmenter tes points</b>, invite tes proches :</p>
+        <ol>
+          <li>Copie ton lien personnel</li>
+          <li>Partage sur WhatsApp ou par email</li>
+          <li>Chaque inscription via ton lien te rapporte des points</li>
+        </ol>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+          <button id="cta-more-points" class="cta">Gagner plus de points</button>
+          <button class="ghost" data-close="modal">Plus tard</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS principal -->
+  <script src="app.js" defer></script>
 </body>
 </html>
