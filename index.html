@@ -1,431 +1,349 @@
-/* ==========================================================
-   Eurovilla.lt — app.js (v4.3 stable)
-   - Mode clair/sombre OK
-   - Anti-doublons auto (ALREADY_REGISTERED) sans “retrouver mon compte”
-   - Polling points 5s + progression lisse
-   - Compte à rebours + compteur participants (fallback 0)
-   - Partage WhatsApp / Email / Copie (nonce + ack)
-   - Liens courts r/z/sn/c
-   - Pays par défaut = Lituanie
-   - Modales vidéo & félicitations
-   ========================================================== */
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Eurovilla.lt — Gagne la villa d’exception à Mougins</title>
+  <meta name="description" content="Inscris-toi gratuitement au tirage Eurovilla.lt : somptueuse villa à Mougins (550 m², 6 suites, piscine, vues), valeur ~5 900 000 €. Multiplie tes points via WhatsApp, email et parrainage. Tirage le 31 octobre 2025.">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <meta property="og:title" content="Gagne une villa à Mougins — Eurovilla.lt">
+  <meta property="og:description" content="Tirage supervisé. 550 m², 6 suites, piscine, valeur ~5 900 000 €. Inscris-toi et multiplie tes points !">
+  <meta property="og:image" content="Images/Image%20villa%20(1).jpg">
+  <meta property="og:type" content="website">
+  <link rel="icon" type="image/png" href="Images/Image%20villa%20(2).jpg" />
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <!-- Topbar -->
+  <div class="topbar" role="status" aria-live="polite">
+    🎉 Félicitations à nos nouveaux inscrits ! Tirage au sort prévu le 31 octobre 2025
+  </div>
 
-const API = {
-  BASE: "https://script.google.com/macros/s/AKfycbx0PahxiURVZ_110-KaOsJEdP0DduSqwz0dxTgQ1R3eS4uX0TKiW3HI6k_beXLrsyJFig/exec",
-  TIMEOUT_MS: 12000,
-  RETRIES: 2
-};
-const DRAW_DATE = new Date("2025-10-31T23:59:59");
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container header-grid">
+      <a class="brand" href="#"><span class="logo">Eurovilla.lt</span></a>
+      <nav class="nav" aria-label="Navigation principale">
+        <a href="#participer">Je participe</a>
+        <a href="#points">Gagner des points</a>
+        <a href="#donateur">Nicolas</a>
+        <a href="#comment-ca-marche">Comment ça marche</a>
+        <a href="#villa">La villa</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div class="header-cta">
+        <a class="btn cta" href="#participer">Je tente ma chance</a>
+        <button class="mode-toggle" id="toggle-theme" aria-label="Basculer clair/sombre">☀︎ / 🌙</button>
+      </div>
+    </div>
+  </header>
 
-const $  = (s, c=document) => c.querySelector(s);
-const $$ = (s, c=document) => Array.from(c.querySelectorAll(s));
-const pad2 = n => String(n).padStart(2,"0");
-const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  <!-- Countdown + compteur -->
+  <section class="datebar" role="note">
+    <div class="container countdown">
+      <strong>Tirage le 31 octobre 2025</strong>
+      <div class="countdown-box">
+        <span>Il reste</span>
+        <div class="countdown-ticks" id="countdown" aria-live="polite">
+          <div class="tick"><strong id="d">0</strong><small>J</small></div>
+          <div class="tick"><strong id="h">00</strong><small>H</small></div>
+          <div class="tick"><strong id="m">00</strong><small>Min</small></div>
+          <div class="tick"><strong id="s">00</strong><small>Sec</small></div>
+        </div>
+      </div>
+      <div class="live-join"><span id="counter-left">0</span> participants déjà inscrits</div>
+    </div>
+  </section>
 
-function setLS(k,v){ try{ localStorage.setItem(k, typeof v==="string"?v:JSON.stringify(v)); }catch{} }
-function getLS(k,def=null){ try{ const v=localStorage.getItem(k); return v==null?def:(v.startsWith("{")||v.startsWith("[")?JSON.parse(v):v);}catch{return def;} }
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <h1>Bienvenue ! Tente de gagner la villa de <span class="accent">Nicolas Bréant</span> à Mougins</h1>
+        <p class="lead">
+          550 m² habitables • 6 suites • Piscine chauffée • Vues dégagées • Environnement calme.<br>
+          Valeur estimée : <strong>5 900 000 €</strong>.
+        </p>
+        <ul class="bullets">
+          <li>Inscription <strong>gratuite</strong></li>
+          <li>Gagne des <strong>points</strong> via WhatsApp, email & parrainage</li>
+          <li>Tirage <strong>transparent</strong> (supervisé, attestation publiée)</li>
+        </ul>
+        <a class="cta xl" href="#participer">🎟️ Je tente ma chance</a>
+      </div>
+      <div class="hero-media">
+        <figure class="media-card">
+          <img src="Images/Image%20villa%20(1).jpg" alt="Villa d’exception à Mougins avec piscine" />
+          <figcaption>Visite 360° & galerie photos</figcaption>
+          <button class="play360" aria-label="Ouvrir la vidéo 360°" data-open="modal-360">Voir la vidéo 360°</button>
+        </figure>
+        <div class="hero-stats">
+          <div class="stat"><span>5 900 000 €</span><small>Valeur estimée</small></div>
+          <div class="stat"><span>31/10/2025</span><small>Date du tirage</small></div>
+          <div class="stat"><span>+ points</span><small>WhatsApp & email</small></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-async function fetchJSON(url, opts={}, retries=API.RETRIES){
-  const ctrl = new AbortController();
-  const t = setTimeout(()=>ctrl.abort(), API.TIMEOUT_MS);
-  try{
-    const res = await fetch(url, { ...opts, signal: ctrl.signal, mode:"cors", redirect:"follow" });
-    clearTimeout(t);
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    return await res.json().catch(()=> ({}));
-  }catch(err){
-    clearTimeout(t);
-    if(retries>0){ await sleep(350*(API.RETRIES-retries+1)); return fetchJSON(url, opts, retries-1); }
-    throw err;
-  }
-}
-function toUrlParams(obj){
-  const p = new URLSearchParams();
-  Object.keys(obj).forEach(k=>{
-    const v = obj[k];
-    if (v === undefined || v === null) return;
-    if (Array.isArray(v)) v.forEach(x=> p.append(k, String(x)));
-    else p.append(k, String(v));
-  });
-  return p;
-}
-async function postForm(url, data, retries=API.RETRIES){
-  const ctrl = new AbortController();
-  const t = setTimeout(()=>ctrl.abort(), API.TIMEOUT_MS);
-  try{
-    const res = await fetch(url, { method:"POST", body: toUrlParams(data), mode:"cors", redirect:"follow", signal: ctrl.signal });
-    clearTimeout(t);
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    return await res.json().catch(()=> ({}));
-  }catch(err){
-    clearTimeout(t);
-    if(retries>0){ await sleep(350*(API.RETRIES-retries+1)); return postForm(url, data, retries-1); }
-    throw err;
-  }
-}
+  <!-- (1) FORMULAIRE D’ABORD -->
+  <section id="participer" class="signup">
+    <div class="container">
+      <h2>🎟️ Inscription</h2>
+      <p>Participe gratuitement maintenant. Tu recevras ton <strong>lien de parrainage</strong> pour gagner plus de points.</p>
 
-/* ---------- thème ---------- */
-(function themeInit(){
-  const root=document.documentElement, btn=$("#toggle-theme");
-  // défaut: dark, mais mémorise si on bascule
-  const saved=getLS("theme"); if(saved==="light"||saved==="dark") root.setAttribute("data-theme", saved);
-  btn?.addEventListener("click", ()=>{
-    const cur=root.getAttribute("data-theme")==="light"?"dark":"light";
-    root.setAttribute("data-theme", cur); setLS("theme", cur);
-  });
-})();
+      <form id="signup-form" class="form card-ui" novalidate aria-describedby="privacy-note">
+        <div class="grid-2">
+          <div class="field has-validation">
+            <label for="firstName">Prénom *</label>
+            <input id="firstName" name="firstName" type="text" placeholder="Tape ton prénom" required>
+            <small class="error-msg">Merci d’indiquer ton prénom</small>
+          </div>
+          <div class="field has-validation">
+            <label for="lastName">Nom *</label>
+            <input id="lastName" name="lastName" type="text" placeholder="Tape ton nom" required>
+            <small class="error-msg">Merci d’indiquer ton nom</small>
+          </div>
+        </div>
 
-/* ---------- compte à rebours + stats ---------- */
-(function countdown(){
-  const d=$("#d"),h=$("#h"),m=$("#m"),s=$("#s"); if(!d||!h||!m||!s) return;
-  const tick=()=>{
-    const diff=Math.max(0, DRAW_DATE - new Date());
-    const D=Math.floor(diff/86400000), H=Math.floor((diff/3600000)%24), M=Math.floor((diff/60000)%60), S=Math.floor((diff/1000)%60);
-    d.textContent=D; h.textContent=pad2(H); m.textContent=pad2(M); s.textContent=pad2(S);
-  };
-  tick(); setInterval(tick,1000);
-})();
-(async function syncStats(){
-  try{
-    const u=new URL(API.BASE); u.searchParams.set("action","stats");
-    const r=await fetchJSON(u.toString(), {method:"GET"});
-    const c=$("#counter-left"); if(c && r && r.totalParticipants!=null) c.textContent=r.totalParticipants.toLocaleString("fr-FR");
-    else if(c) c.textContent="0";
-  }catch{ const c=$("#counter-left"); if(c) c.textContent="0"; }
-})();
+        <div class="grid-2">
+          <div class="field has-validation">
+            <label for="email">Email *</label>
+            <input id="email" name="email" type="email" inputmode="email" placeholder="nom@exemple.com" required>
+            <small class="error-msg">Email invalide</small>
+          </div>
+          <div class="field has-validation">
+            <label for="phone">Téléphone *</label>
+            <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="+33 6 12 34 56 78" required>
+            <small class="error-msg">Téléphone invalide</small>
+          </div>
+        </div>
 
-/* ---------- Modale vidéo 360 + modales génériques ---------- */
-(function modals(){
-  function open(id){ const m=$(id); if(!m) return; m.removeAttribute("hidden"); }
-  function close(el){ el.setAttribute("hidden",""); }
-  // vidéo 360
-  $$("[data-open='modal-360']").forEach(b=> b.addEventListener("click", ()=> open("#modal-360")));
-  document.addEventListener("click",(e)=>{
-    const closeBtn = e.target.closest("[data-action='close-modal']");
-    if(closeBtn){
-      const modal = closeBtn.closest(".modal");
-      modal && close(modal);
-    }
-    if(e.target.classList.contains("modal-backdrop")){
-      const modal = e.target.closest(".modal");
-      modal && close(modal);
-    }
-  });
-  document.addEventListener("keydown",e=>{
-    if(e.key==="Escape"){
-      $$(".modal:not([hidden])").forEach(m=> m.setAttribute("hidden",""));
-    }
-  });
-})();
+        <!-- Canaux (cases à cocher) -->
+        <fieldset class="field">
+          <legend>Canaux de contact (choix multiples)</legend>
+          <div class="checks">
+            <label><input type="checkbox" name="contact" value="email" checked> Email</label>
+            <label><input type="checkbox" name="contact" value="sms"> SMS</label>
+            <label><input type="checkbox" name="contact" value="whatsapp"> WhatsApp</label>
+            <label><input type="checkbox" name="contact" value="appel"> Appel</label>
+          </div>
+          <small>Nous pourrons te joindre par plusieurs canaux pour éviter toute perte de chance.</small>
+        </fieldset>
 
-/* ---------- toasts ---------- */
-function toast(msg){
-  let t=$("#toast-hint");
-  if(!t){
-    t=document.createElement("div"); t.id="toast-hint";
-    Object.assign(t.style,{position:"fixed",left:"50%",bottom:"24px",transform:"translateX(-50%)",background:"rgba(0,0,0,.85)",color:"#fff",padding:"10px 14px",borderRadius:"10px",zIndex:"9999",fontWeight:"700",backdropFilter:"blur(4px)",maxWidth:"90%",textAlign:"center"});
-    document.body.appendChild(t);
-  }
-  t.textContent=msg; t.style.opacity="1"; t.style.transition="none";
-  setTimeout(()=>{ t.style.transition="opacity .5s"; t.style.opacity="0"; }, 1800);
-}
+        <div class="grid-2">
+          <div class="field">
+            <label for="country">Pays de résidence (UE) *</label>
+            <select id="country" name="country" required>
+              <option value="" disabled>Sélectionner un pays</option>
+              <option>Allemagne</option><option>Autriche</option><option>Belgique</option><option>Bulgarie</option>
+              <option>Chypre</option><option>Croatie</option><option>Danemark</option><option>Espagne</option>
+              <option>Estonie</option><option>Finlande</option><option>France</option><option>Grèce</option>
+              <option>Hongrie</option><option>Irlande</option><option>Italie</option><option>Lettonie</option>
+              <option selected>Lituanie</option>
+              <option>Luxembourg</option><option>Malte</option><option>Pays-Bas</option>
+              <option>Pologne</option><option>Portugal</option><option>Roumanie</option>
+              <option>Slovaquie</option><option>Slovénie</option><option>Suède</option>
+            </select>
+          </div>
 
-/* ---------- points UI ---------- */
-const POINTS_MAX=50;
-function setPointsUI(n){
-  const pts=Math.max(1, Number(n||1));
-  setLS("points_ui", pts);
-  const score=$("#score-points"); if(score) score.textContent=pts;
-  const pct=Math.round(Math.min(100, pts/POINTS_MAX*100));
-  const bar=$("#progress-bar"), lab=$("#progress-label");
-  if(bar){ bar.style.transition="width .6s ease"; bar.style.width=pct+"%"; }
-  if(lab) lab.textContent=pct+"%";
-}
+          <!-- Slider de style (visuel seulement) -->
+          <div class="field">
+            <label for="engagement">Niveau d’engagement</label>
+            <input id="engagement" type="range" min="0" max="100" value="30">
+          </div>
+        </div>
 
-/* ---------- liens & referrals ---------- */
-function ownUserId(){ return getLS("userId",""); }
-function shortId(userId){ try{ let h=0; for(let i=0;i<userId.length;i++){ h=((h<<5)-h)+userId.charCodeAt(i); h|=0;} return Math.abs(h).toString(36).slice(-5);}catch{return userId.slice(-5);} }
-function b64urlEncode(str){ try{ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }catch{return "";}}
-function b64urlDecode(str){ try{ const pad=str.length%4===2?"==":str.length%4===3?"=":""; return decodeURIComponent(escape(atob(str.replace(/-/g,"+").replace(/_/g,"/")+pad))); }catch{return "";} }
-function chainTokenFromUpline(upline){ return b64urlEncode((upline||[]).join(",")); }
-function uplineFromChainToken(z){ const csv=b64urlDecode(z||""); return csv? csv.split(",").map(s=>s.trim()).filter(Boolean):[]; }
-function prettyOrigin(){ if(location.origin && location.origin.startsWith("http")) return location.origin; return "https://eurovilla.lt"; }
-function buildReferralLinkShort(userId, channel){
-  const chain = [userId].concat(getLS("upline", []));
-  const z = chainTokenFromUpline(chain);
-  const r = shortId(userId);
-  const base = new URL(prettyOrigin() + location.pathname.replace(/^file:.*?\/([^/]+)$/, "/$1"));
-  base.searchParams.set("r", r);
-  base.searchParams.set("z", z);
-  base.searchParams.set("c", channel);
-  return base.toString();
-}
+        <div class="field checkbox">
+          <input id="acceptRules" type="checkbox" required>
+          <label for="acceptRules">J’ai lu et j’accepte le <a href="reglement.html" target="_blank" rel="noopener">règlement du tirage</a> & la politique de confidentialité.</label>
+        </div>
 
-/* Atterrissage : mémoriser la chaîne + log click */
-(function referralLanding(){
-  const url = new URL(location.href);
-  const z  = url.searchParams.get("z");
-  const rc = url.searchParams.get("rc");
-  const ref= url.searchParams.get("ref");
-  let chain = [];
-  if(z) chain = uplineFromChainToken(z);
-  else if(rc) chain = rc.split(",").filter(Boolean);
-  else if(ref) chain = [ref];
-  if(chain.length){ setLS("upline", chain); }
+        <!-- champs remplis par JS -->
+        <input type="hidden" id="referrerId" name="referrerId" value="">
+        <input type="hidden" id="fingerprint" name="fingerprint" value="">
+        <input type="hidden" id="campaign" name="campaign" value="display_q4_2025">
 
-  const refKey = (chain[0]||"") + ":" + (z||rc||ref||"");
-  const key = "click_logged_"+refKey;
-  if(getLS(key)) return;
+        <button class="btn xl" type="submit">Je valide mon inscription</button>
+        <p id="privacy-note" class="privacy">Inscription gratuite. Une seule participation par personne. Les points s’ajoutent quand vos invités s’inscrivent réellement.</p>
 
-  postForm(API.BASE, {
-    action: "click",
-    timestamp: new Date().toISOString(),
-    referrerId: chain[0] || "",
-    refChain: chain.slice(1).join(","),
-    fingerprint: simpleFingerprint(),
-    pageUrl: location.href,
-    userAgent: navigator.userAgent
-  }).then(()=> setLS(key,1)).catch(()=>{});
-})();
+        <p class="success" id="signup-success" role="alert" hidden>Inscription validée 🎉 Ton lien de parrainage arrive…</p>
+        <p class="error" id="signup-error" role="alert" hidden>Oups, un petit contretemps. Réessaie dans un instant.</p>
+      </form>
+    </div>
+  </section>
 
-function simpleFingerprint(){
-  try{
-    const data=[navigator.userAgent,navigator.language,screen.width+"x"+screen.height,(Intl.DateTimeFormat().resolvedOptions().timeZone||"")].join("|");
-    let h=0; for(let i=0;i<data.length;i++){ h=((h<<5)-h)+data.charCodeAt(i); h|=0; }
-    return "fp_"+Math.abs(h);
-  }catch{ return "fp_unknown"; }
-}
+  <!-- (2) Gagner des points -->
+  <section id="points" class="points">
+    <div class="container">
+      <h2>Gagne plus de <span class="accent">points</span></h2>
+      <p>Invite tes proches : chaque inscription via ton lien augmente tes points et ta probabilité au tirage.</p>
 
-/* ---------- partage ---------- */
-async function shareStart(channel){
-  const uid = ownUserId();
-  const nonce = (uid? uid+"_":"") + "sn_" + Date.now().toString(36);
-  setLS("last_share_nonce", nonce);
+      <div class="progress-wrap" aria-label="Progression de tes points" aria-live="polite">
+        <div class="progress-head">
+          <span>Progression</span>
+          <strong id="progress-label">0%</strong>
+        </div>
+        <div class="progress"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+        <div class="progress-steps">
+          <span>0 pt</span><span>5 pts</span><span>15 pts</span><span>30 pts</span><span>50 pts</span>
+        </div>
+      </div>
 
-  const base = uid ? buildReferralLinkShort(uid, channel) : (()=>{
-    const url=new URL(prettyOrigin() + location.pathname.replace(/^file:.*?\/([^/]+)$/, "/$1"));
-    const chain = getLS("upline", []);
-    if(chain.length){ url.searchParams.set("z", chainTokenFromUpline(chain)); }
-    url.searchParams.set("c", channel);
-    return url.toString();
-  })();
-  const u = new URL(base); u.searchParams.set("sn", nonce);
+      <div class="cards">
+        <article class="card">
+          <h3>Partage WhatsApp</h3>
+          <p>Chaque inscription via ton lien WhatsApp = <strong>+2 points</strong>.</p>
+          <button class="btn outline" data-action="share-whatsapp">Partager sur WhatsApp</button>
+        </article>
+        <article class="card">
+          <h3>Invitation par email</h3>
+          <p>Chaque inscription confirmée depuis ton email = <strong>+2 points</strong>.</p>
+          <button class="btn outline" data-action="share-email">Inviter par email</button>
+        </article>
+        <article class="card">
+          <h3>Lien de parrainage</h3>
+          <p>Chaque filleul inscrit & validé = <strong>+5 points</strong>.</p>
+          <div class="ref-row">
+            <input id="ref-link" class="ref-input" type="text" readonly value="https://eurovilla.lt/?r=xxxxx" aria-label="Lien de parrainage">
+            <button class="btn" data-action="copy-ref">Copier</button>
+          </div>
+          <small>Astuce : explique pourquoi ce projet te plaît, ça donne envie de participer 😉</small>
+        </article>
+      </div>
 
-  postForm(API.BASE, { action:"share-start", nonce, userId:uid||"", channel, pageUrl:location.href }).catch(()=>{});
-  return { nonce, url: u.toString() };
-}
-async function pollAck(nonce, ms=6000){
-  const start=Date.now();
-  while(Date.now()-start < ms){
-    try{
-      const q=new URL(API.BASE); q.searchParams.set("action","share-ack"); q.searchParams.set("nonce", nonce);
-      const r=await fetchJSON(q.toString(), {method:"GET"});
-      if(r && r.ok && r.ack===true) return true;
-    }catch{}
-    await sleep(800);
-  }
-  return false;
-}
-async function shareWhatsApp(){
-  const { nonce, url } = await shareStart("wa");
-  const text = `Je participe à Eurovilla.lt pour gagner une villa d’exception ! Inscris-toi ici (ça me donne des points) : ${url}`;
-  const wa = `https://wa.me/?text=${encodeURIComponent(text)}`;
-  if(navigator.share){
-    try{ await navigator.share({ text, url }); pollAck(nonce).then(ok=> ok && toast("Lien WhatsApp ouvert ✅")); }
-    catch{ window.open(wa,"_blank"); }
-  }else{ window.open(wa,"_blank"); }
-}
-async function shareEmail(){
-  const { nonce, url } = await shareStart("em");
-  const subject="Rejoins-moi sur Eurovilla.lt (villa à gagner)";
-  const body   =`Hello,\n\nJe participe à Eurovilla.lt pour gagner une villa d’exception.\nInscris-toi ici (ça me donne des points) : ${url}\n\nC’est gratuit et le tirage est supervisé.\n`;
-  const mailto =`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.location.href = mailto;
-  pollAck(nonce).then(ok=> ok && toast("Lien email ouvert ✅"));
-}
-async function copyReferral(){
-  const { nonce, url } = await shareStart("cp");
-  try{ await navigator.clipboard.writeText(url); toast("Lien copié 👍"); }
-  catch{
-    const input=$("#ref-link"); if(input){ input.value=url; input.select(); document.execCommand("copy"); toast("Lien copié 👍"); }
-  }
-  pollAck(nonce).then(ok=> ok && toast("Premier clic détecté ✅"));
-}
+      <div class="score">
+        <div class="score-box">
+          <div>🎯 Tes points :</div>
+          <div class="score-value" id="score-points" aria-live="polite">1</div>
+        </div>
+        <p class="score-note">Les points augmentent ta probabilité au tirage, mais tout le monde reste en lice.</p>
+      </div>
+    </div>
+  </section>
 
-/* ---------- snapshot (polling) ---------- */
-async function fetchUserSnapshot(userId){
-  try{
-    const u=new URL(API.BASE); u.searchParams.set("action","user"); u.searchParams.set("userId", userId);
-    const r = await fetchJSON(u.toString(), { method:"GET" });
-    return r && r.ok ? r : null;
-  }catch{ return null; }
-}
-function updateUserUI(snapshot){
-  if(!snapshot) return;
-  if(snapshot.points != null) setPointsUI(Number(snapshot.points));
-}
-let pollTimer=null;
-function startUserPolling(){
-  const uid = ownUserId(); if(!uid) return;
-  const tick = async ()=> updateUserUI(await fetchUserSnapshot(uid));
-  if(pollTimer) clearInterval(pollTimer);
-  tick(); pollTimer = setInterval(tick, 5000);
-}
+  <!-- (3) Nicolas -->
+  <section id="donateur" class="donor">
+    <div class="container donor-grid">
+      <img class="donor-photo" src="Images/Image%20villa%20(3).jpg" alt="Photo de Nicolas Bréant (illustration)" />
+      <div>
+        <h2>Nicolas Bréant — entrepreneur & esprit partageur</h2>
+        <p>Après la vente de sa start-up dans le secteur médical, Nicolas a beaucoup voyagé et partage aujourd’hui sa vie entre Lisbonne et Montréal. Il a choisi de transformer cette villa d’exception en Côte d’Azur en une opportunité simple et joyeuse : <em>la donner via un tirage au sort légal et transparent</em>, orchestré par Eurovilla.lt.</p>
+        <div class="quote">« J’aimerais que cette maison fasse le bonheur de quelqu’un. »</div>
+      </div>
+    </div>
+  </section>
 
-/* ---------- validation visuelle formulaire ---------- */
-function setInvalid(el, invalid){
-  const wrap = el.closest(".has-validation");
-  if(!wrap) return;
-  if(invalid) wrap.classList.add("invalid"); else wrap.classList.remove("invalid");
-}
-function validEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||"").trim()); }
-function validPhone(v){ return /^\+?\d[\d\s.-]{5,}$/.test(String(v||"").trim()); }
+  <!-- (4) Comment ça marche -->
+  <section id="comment-ca-marche" class="howitworks">
+    <div class="container">
+      <h2>Comment ça marche ?</h2>
+      <ol class="steps">
+        <li><h3>1) Inscris-toi</h3><p>Formulaire simple et gratuit (+18 ans). Tu reçois ton lien de parrainage.</p></li>
+        <li><h3>2) Gagne des points</h3><p>Partage par <strong>WhatsApp</strong> & <strong>email</strong>, et utilise ton <strong>lien de parrainage</strong>. Les points s’ajoutent lorsque tes invités s’inscrivent.</p></li>
+        <li><h3>3) Tirage — 31/10/2025</h3><p>Procédure à huis clos, supervision d’un professionnel habilité. Attestation publiée.</p></li>
+        <li><h3>4) Annonce & remise des clés</h3><p>Annonce officielle, contact par email/SMS/WhatsApp/appel, accompagnement jusqu’à la remise des clés.</p></li>
+      </ol>
+      <div class="badge-row"><span class="badge">Supervisé</span><span class="badge">Transparence</span><span class="badge">Inscription gratuite</span></div>
+    </div>
+  </section>
 
-/* ---------- formulaire ---------- */
-(function formInit(){
-  const form=$("#signup-form"); 
-  if(!form){ startUserPolling(); return; }
+  <!-- (5) Villa -->
+  <section id="villa" class="villa">
+    <div class="container villa-grid">
+      <div>
+        <h2>La villa — Mougins (Alpes-Maritimes, 06250)</h2>
+        <ul class="specs">
+          <li><strong>Valeur</strong> : 5 900 000 €</li>
+          <li><strong>Surface habitable</strong> : 550 m² (≈ 5 920 sq ft)</li>
+          <li><strong>Terrain</strong> : 3 176 m² (≈ 33 977 sq ft)</li>
+          <li><strong>Suites</strong> : 6 (chambres & salles d’eau)</li>
+          <li><strong>Confort</strong> : Piscine chauffée, salle de cinéma, salle de sport, double garage</li>
+          <li><strong>Atouts</strong> : Vue dégagée (montagnes, collines), exposition sud-ouest</li>
+          <li><strong>Performance</strong> : DPE A (32) / GES A (1)</li>
+          <li><strong>Réf.</strong> : VBE230011</li>
+        </ul>
+        <p>Cadre privilégié, prestations haut de gamme, terrasses ensoleillées, jardin paysager. À quelques minutes de Cannes et ~30 min de l’aéroport de Nice.</p>
+      </div>
+      <div class="gallery" aria-label="Galerie photos de la villa">
+        <img src="Images/Image%20villa%20(4).jpg" alt="Salon lumineux" />
+        <img src="Images/Image%20villa%20(5).jpg" alt="Cuisine contemporaine" />
+        <img src="Images/Image%20villa%20(6).jpg" alt="Piscine et terrasse" />
+        <img src="Images/Image%20villa%20(7).jpg" alt="Suite élégante" />
+      </div>
+    </div>
+  </section>
 
-  // Pays défaut Lituanie si vide
-  if(form.elements.country && !form.elements.country.value){ form.elements.country.value = "Lituanie"; }
+  <!-- (6) FAQ -->
+  <section id="faq" class="faq">
+    <div class="container">
+      <h2>FAQ</h2>
+      <details><summary>La participation est-elle vraiment gratuite ?</summary><p>Oui. L’inscription est gratuite. Ensuite, le gagnant échange avec Eurovilla.lt au sujet d’éventuels frais administratifs, variables selon le processus retenu.</p></details>
+      <details><summary>Comment fonctionnent les points ?</summary><p>Tu obtiens des points à l’inscription, puis à chaque fois qu’un proche s’inscrit via ton lien (WhatsApp, email, parrainage). Plus de points = plus de probabilité au tirage — tout le monde participe.</p></details>
+      <details><summary>Puis-je participer plusieurs fois ?</summary><p>Non, une seule participation par personne (email/téléphone uniques). Si tu es déjà inscrit(e), on synchronise automatiquement tes points.</p></details>
+      <details><summary>Comment se déroule le tirage ?</summary><p>Le tirage a lieu à huis clos, supervision d’un professionnel habilité. Une attestation est publiée.</p></details>
+      <details><summary>Je peux voir la villa en vidéo ?</summary><p>Oui, une visite 360° est disponible : clique sur “Voir la vidéo 360°”.</p></details>
+    </div>
+  </section>
 
-  // Upline depuis URL
-  const u = new URL(location.href);
-  const z  = u.searchParams.get("z");
-  const rc = u.searchParams.get("rc");
-  const ref= u.searchParams.get("ref");
-  let chain = [];
-  if(z) chain = uplineFromChainToken(z);
-  else if(rc) chain = rc.split(",").filter(Boolean);
-  else if(ref) chain = [ref];
-  if(chain.length){
-    setLS("upline", chain);
-    $("#referrerId") && ($("#referrerId").value = chain[0]);
-  }
+  <!-- CTA finale -->
+  <section class="cta-final">
+    <div class="container cta-grid">
+      <div><h2>On s’y met ?</h2><p>Valide ton inscription, récupère ton lien et invite tes proches. Bonne chance ✨</p></div>
+      <a class="btn xl" href="#participer">Je tente ma chance</a>
+    </div>
+  </section>
 
-  // pré-remplissage simple si déjà visité
-  const savedEmail = getLS("email",""); if(savedEmail) form.elements.email.value = savedEmail;
-  const savedPhone = getLS("phone",""); if(savedPhone) form.elements.phone.value = savedPhone;
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div class="foot-brand">
+        <span class="logo">Eurovilla.lt</span>
+        <p class="foot-note">© Eurovilla.lt — Tirage officiel, transparence & accompagnement convivial.</p>
+      </div>
+      <nav class="foot-nav" aria-label="Navigation pied de page">
+        <a href="#participer">Je participe</a>
+        <a href="#points">Gagner des points</a>
+        <a href="#comment-ca-marche">Comment ça marche</a>
+        <a href="reglement.html" target="_blank" rel="noopener">Règlement</a>
+        <a href="#faq">FAQ</a>
+        <a href="mailto:contact@eurovilla.lt">Contact</a>
+      </nav>
+      <div class="foot-cta">
+        <a class="btn" href="#participer">Je m’inscris</a>
+        <a class="btn outline" href="#points">Gagner des points</a>
+      </div>
+    </div>
+  </footer>
 
-  // partages
-  $("[data-action='share-whatsapp']")?.addEventListener("click", shareWhatsApp);
-  $("[data-action='share-email']")?.addEventListener("click", shareEmail);
-  $("[data-action='copy-ref']")?.addEventListener("click", copyReferral);
+  <!-- Modale vidéo 360° -->
+  <div class="modal" id="modal-360" aria-hidden="true" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-360-title">
+      <button class="modal-close" data-action="close-modal" aria-label="Fermer">×</button>
+      <h3 id="modal-360-title">Visite 360°</h3>
+      <div class="modal-body" id="modal-360-body">
+        <video controls playsinline preload="metadata" style="width:100%;max-height:70vh;border-radius:12px;outline:none;">
+          <source src="vidéos/vidéo%20360.ts" type="video/mp2t">
+          Votre navigateur peut ne pas lire le format .ts. Convertissez en .mp4 pour une compatibilité maximale.
+        </video>
+      </div>
+    </div>
+    <div class="modal-backdrop" data-action="close-modal"></div>
+  </div>
 
-  let submitting=false;
-  form.addEventListener("submit", async (e)=>{
-    e.preventDefault();
-    if(submitting) return;
-    submitting=true;
-
-    const success=$("#signup-success"), error=$("#signup-error");
-    success?.setAttribute("hidden",""); error?.setAttribute("hidden","");
-
-    const firstName = form.elements.firstName.value.trim();
-    const lastName  = form.elements.lastName.value.trim();
-    const email     = form.elements.email.value.trim();
-    const phone     = form.elements.phone.value.trim();
-    const country   = form.elements.country.value.trim();
-
-    setInvalid(form.elements.firstName, !firstName);
-    setInvalid(form.elements.lastName,  !lastName);
-    setInvalid(form.elements.email,     !validEmail(email));
-    setInvalid(form.elements.phone,     !validPhone(phone));
-    if(!firstName || !lastName || !validEmail(email) || !validPhone(phone)){
-      error.textContent="Merci de compléter correctement les champs requis.";
-      error.removeAttribute("hidden");
-      submitting=false; return;
-    }
-    if(!countryIsEU(country)){
-      error.textContent="Pays de résidence non éligible (UE uniquement).";
-      error.removeAttribute("hidden");
-      submitting=false; return;
-    }
-
-    const channels = $$("input[name='contact']:checked", form).map(x=>x.value).join(",");
-    const upline = getLS("upline", []);
-    const payload = {
-      action: "register",
-      firstName, lastName, email, phone,
-      country, contactAll: channels,
-      referrerId: (upline[0]||""),
-      refChain: (upline.slice(1)||[]).join(","),
-      fingerprint: simpleFingerprint(),
-      campaign: form.elements.campaign.value || "",
-      userAgent: navigator.userAgent,
-      ip: ""
-    };
-
-    try{
-      const res = await postForm(API.BASE, payload);
-      if(res && res.ok){
-        const uid = res.userId;
-        setLS("userId", uid);
-        setLS("email", email); setLS("phone", phone);
-        setPointsUI(Number(res.points||1));
-        const refInput=$("#ref-link"); if(refInput){ refInput.value = buildReferralLinkShort(uid,"cp"); }
-        success.removeAttribute("hidden");
-        $("#congrats-modal")?.removeAttribute("hidden");
-        location.hash="#points";
-        startUserPolling();
-      }else if(res && res.code==="ALREADY_REGISTERED"){
-        // Auto : “vous êtes déjà inscrit” + on affiche ses points
-        const uid = res.userId;
-        setLS("userId", uid);
-        setLS("email", email); setLS("phone", phone);
-        setPointsUI(Number(res.points||1));
-        const refInput=$("#ref-link"); if(refInput){ refInput.value = buildReferralLinkShort(uid,"cp"); }
-        success.textContent = "Vous êtes déjà inscrit(e). Vos points sont synchronisés 🎉";
-        success.removeAttribute("hidden");
-        $("#congrats-modal")?.removeAttribute("hidden");
-        location.hash="#points";
-        startUserPolling();
-      }else{
-        error.textContent = (res && res.message) ? res.message : "Impossible d’enregistrer pour le moment.";
-        error.removeAttribute("hidden");
-      }
-    }catch(err){
-      console.error(err);
-      error.textContent="Réseau indisponible. Merci de réessayer.";
-      error.removeAttribute("hidden");
-    }finally{
-      submitting=false;
-    }
-  });
-})();
-
-/* ---------- ready ---------- */
-document.addEventListener("DOMContentLoaded", ()=>{
-  const uid = getLS("userId","");
-  const refInput=$("#ref-link");
-  if(refInput && uid){ refInput.value = buildReferralLinkShort(uid,"cp"); }
-  setPointsUI(getLS("points_ui", 1));
-  if(uid) startUserPolling();
-
-  // CTA modale “Gagner plus de points”
-  $("#cta-more-points")?.addEventListener("click", ()=>{
-    $("#congrats-modal")?.setAttribute("hidden","");
-    document.querySelector("#points")?.scrollIntoView({behavior:"smooth"});
-  });
-
-  // états réseau
-  window.addEventListener("offline", ()=> toast("Connexion perdue"));
-  window.addEventListener("online",  ()=> toast("Connexion rétablie ✅"));
-
-  // Refresh snapshot au retour onglet
-  document.addEventListener("visibilitychange", ()=>{
-    if(document.visibilityState==="visible"){
-      const uid = getLS("userId","");
-      if(uid) fetchUserSnapshot(uid).then(updateUserUI).catch(()=>{});
-    }
-  });
-});
-
-/* ---------- EU check ---------- */
-function countryIsEU(label){
-  return [
-    "Allemagne","Autriche","Belgique","Bulgarie","Chypre","Croatie","Danemark","Espagne","Estonie","Finlande",
-    "France","Grèce","Hongrie","Irlande","Italie","Lettonie","Lituanie","Luxembourg","Malte","Pays-Bas",
-    "Pologne","Portugal","Roumanie","Slovaquie","Slovénie","Suède"
-  ].includes((label||"").trim());
-}
+  <!-- Modale “Félicitations” (auto) -->
+  <div class="modal" id="congrats-modal" aria-hidden="true" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="congrats-title">
+      <button class="modal-close" data-action="close-modal" aria-label="Fermer">×</button>
+      <h3 id="congrats-title">Félicitations 🎉</h3>
+      <p>Ton inscription est validée ! Tu peux maintenant augmenter tes points en invitant tes proches.</p>
+      <div class="modal-actions">
+        <button class="btn" id="cta-more-points">Gagner plus de points</button>
+      </div>
+    </div>
+    <div class="modal-backdrop" data-action="close-modal"></div>
+  </div>
+</body>
+</html>
