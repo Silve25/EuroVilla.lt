@@ -41,16 +41,18 @@
   </header>
 
   <!-- Countdown + compteur -->
-  <section class="datebar" role="note">
+  <section class="datebar">
     <div class="container countdown">
-      <strong>Tirage le 31 octobre 2025</strong>
-      <div class="countdown-box">
-        <span>Il reste</span>
-        <div class="countdown-ticks" id="countdown" aria-live="polite">
-          <div class="tick"><strong id="d">0</strong><small>J</small></div>
-          <div class="tick"><strong id="h">00</strong><small>H</small></div>
-          <div class="tick"><strong id="m">00</strong><small>Min</small></div>
-          <div class="tick"><strong id="s">00</strong><small>Sec</small></div>
+      <div class="countdown-left">
+        <strong>Tirage le 31 octobre 2025</strong>
+        <div class="countdown-box">
+          <span>Il reste</span>
+          <div class="countdown-ticks" id="countdown" aria-live="polite">
+            <div class="tick"><strong id="d">0</strong><small>J</small></div>
+            <div class="tick"><strong id="h">00</strong><small>H</small></div>
+            <div class="tick"><strong id="m">00</strong><small>Min</small></div>
+            <div class="tick"><strong id="s">00</strong><small>Sec</small></div>
+          </div>
         </div>
       </div>
       <div class="live-join"><span id="counter-left">0</span> participants déjà inscrits</div>
@@ -88,22 +90,24 @@
     </div>
   </section>
 
-  <!-- (1) FORMULAIRE D’ABORD -->
+  <!-- (1) FORMULAIRE EN PREMIER -->
   <section id="participer" class="signup">
     <div class="container">
-      <h2>🎟️ Inscription</h2>
-      <p>Participe gratuitement maintenant. Tu recevras ton <strong>lien de parrainage</strong> pour gagner plus de points.</p>
+      <div class="section-head">
+        <h2>🎟️ Inscription</h2>
+        <p>Participe gratuitement maintenant. Tu recevras ton <strong>lien de parrainage</strong> pour gagner plus de points.</p>
+      </div>
 
       <form id="signup-form" class="form card-ui" novalidate aria-describedby="privacy-note">
         <div class="grid-2">
           <div class="field has-validation">
             <label for="firstName">Prénom *</label>
-            <input id="firstName" name="firstName" type="text" placeholder="Tape ton prénom" required>
+            <input id="firstName" name="firstName" type="text" placeholder="Tape ton prénom" required autocomplete="given-name">
             <small class="error-msg">Merci d’indiquer ton prénom</small>
           </div>
           <div class="field has-validation">
             <label for="lastName">Nom *</label>
-            <input id="lastName" name="lastName" type="text" placeholder="Tape ton nom" required>
+            <input id="lastName" name="lastName" type="text" placeholder="Tape ton nom" required autocomplete="family-name">
             <small class="error-msg">Merci d’indiquer ton nom</small>
           </div>
         </div>
@@ -111,26 +115,25 @@
         <div class="grid-2">
           <div class="field has-validation">
             <label for="email">Email *</label>
-            <input id="email" name="email" type="email" inputmode="email" placeholder="nom@exemple.com" required>
+            <input id="email" name="email" type="email" inputmode="email" placeholder="nom@exemple.com" required autocomplete="email">
             <small class="error-msg">Email invalide</small>
           </div>
           <div class="field has-validation">
             <label for="phone">Téléphone *</label>
-            <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="+33 6 12 34 56 78" required>
+            <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="+33 6 12 34 56 78" required autocomplete="tel">
             <small class="error-msg">Téléphone invalide</small>
           </div>
         </div>
 
         <!-- Canaux (cases à cocher) -->
         <fieldset class="field">
-          <legend>Canaux de contact (choix multiples)</legend>
+          <legend>Comment te contacter si tu gagnes ?</legend>
           <div class="checks">
             <label><input type="checkbox" name="contact" value="email" checked> Email</label>
-            <label><input type="checkbox" name="contact" value="sms"> SMS</label>
             <label><input type="checkbox" name="contact" value="whatsapp"> WhatsApp</label>
-            <label><input type="checkbox" name="contact" value="appel"> Appel</label>
+            <label><input type="checkbox" name="contact" value="sms"> SMS</label>
           </div>
-          <small>Nous pourrons te joindre par plusieurs canaux pour éviter toute perte de chance.</small>
+          <small>Tu peux choisir plusieurs canaux.</small>
         </fieldset>
 
         <div class="grid-2">
@@ -149,10 +152,10 @@
             </select>
           </div>
 
-          <!-- Slider de style (visuel seulement) -->
+          <!-- Slider (visuel) -->
           <div class="field">
             <label for="engagement">Niveau d’engagement</label>
-            <input id="engagement" type="range" min="0" max="100" value="30">
+            <input id="engagement" type="range" min="0" max="100" value="35">
           </div>
         </div>
 
@@ -161,13 +164,15 @@
           <label for="acceptRules">J’ai lu et j’accepte le <a href="reglement.html" target="_blank" rel="noopener">règlement du tirage</a> & la politique de confidentialité.</label>
         </div>
 
-        <!-- champs remplis par JS -->
+        <!-- remplis par app.js -->
         <input type="hidden" id="referrerId" name="referrerId" value="">
         <input type="hidden" id="fingerprint" name="fingerprint" value="">
         <input type="hidden" id="campaign" name="campaign" value="display_q4_2025">
 
-        <button class="btn xl" type="submit">Je valide mon inscription</button>
-        <p id="privacy-note" class="privacy">Inscription gratuite. Une seule participation par personne. Les points s’ajoutent quand vos invités s’inscrivent réellement.</p>
+        <div class="actions-row">
+          <button class="btn xl" type="submit">Je valide mon inscription</button>
+          <p id="privacy-note" class="privacy">Inscription gratuite. Une seule participation par personne.</p>
+        </div>
 
         <p class="success" id="signup-success" role="alert" hidden>Inscription validée 🎉 Ton lien de parrainage arrive…</p>
         <p class="error" id="signup-error" role="alert" hidden>Oups, un petit contretemps. Réessaie dans un instant.</p>
@@ -175,11 +180,13 @@
     </div>
   </section>
 
-  <!-- (2) Gagner des points -->
+  <!-- (2) MULTIPLIER SES POINTS -->
   <section id="points" class="points">
     <div class="container">
-      <h2>Gagne plus de <span class="accent">points</span></h2>
-      <p>Invite tes proches : chaque inscription via ton lien augmente tes points et ta probabilité au tirage.</p>
+      <div class="section-head">
+        <h2>Gagne plus de <span class="accent">points</span></h2>
+        <p>Invite tes proches : chaque inscription via ton lien augmente tes points et ta probabilité au tirage.</p>
+      </div>
 
       <div class="progress-wrap" aria-label="Progression de tes points" aria-live="polite">
         <div class="progress-head">
@@ -187,9 +194,7 @@
           <strong id="progress-label">0%</strong>
         </div>
         <div class="progress"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
-        <div class="progress-steps">
-          <span>0 pt</span><span>5 pts</span><span>15 pts</span><span>30 pts</span><span>50 pts</span>
-        </div>
+        <div class="progress-steps"><span>0 pt</span><span>5 pts</span><span>15 pts</span><span>30 pts</span><span>50 pts</span></div>
       </div>
 
       <div class="cards">
@@ -224,7 +229,7 @@
     </div>
   </section>
 
-  <!-- (3) Nicolas -->
+  <!-- (3) NICOLAS -->
   <section id="donateur" class="donor">
     <div class="container donor-grid">
       <img class="donor-photo" src="Images/Image%20villa%20(3).jpg" alt="Photo de Nicolas Bréant (illustration)" />
@@ -236,21 +241,23 @@
     </div>
   </section>
 
-  <!-- (4) Comment ça marche -->
+  <!-- (4) COMMENT ÇA MARCHE -->
   <section id="comment-ca-marche" class="howitworks">
     <div class="container">
-      <h2>Comment ça marche ?</h2>
+      <div class="section-head">
+        <h2>Comment ça marche ?</h2>
+      </div>
       <ol class="steps">
         <li><h3>1) Inscris-toi</h3><p>Formulaire simple et gratuit (+18 ans). Tu reçois ton lien de parrainage.</p></li>
         <li><h3>2) Gagne des points</h3><p>Partage par <strong>WhatsApp</strong> & <strong>email</strong>, et utilise ton <strong>lien de parrainage</strong>. Les points s’ajoutent lorsque tes invités s’inscrivent.</p></li>
         <li><h3>3) Tirage — 31/10/2025</h3><p>Procédure à huis clos, supervision d’un professionnel habilité. Attestation publiée.</p></li>
-        <li><h3>4) Annonce & remise des clés</h3><p>Annonce officielle, contact par email/SMS/WhatsApp/appel, accompagnement jusqu’à la remise des clés.</p></li>
+        <li><h3>4) Annonce & remise des clés</h3><p>Annonce officielle, contact par email/SMS/WhatsApp, accompagnement jusqu’à la remise des clés.</p></li>
       </ol>
       <div class="badge-row"><span class="badge">Supervisé</span><span class="badge">Transparence</span><span class="badge">Inscription gratuite</span></div>
     </div>
   </section>
 
-  <!-- (5) Villa -->
+  <!-- (5) VILLA -->
   <section id="villa" class="villa">
     <div class="container villa-grid">
       <div>
@@ -279,12 +286,14 @@
   <!-- (6) FAQ -->
   <section id="faq" class="faq">
     <div class="container">
-      <h2>FAQ</h2>
+      <div class="section-head">
+        <h2>FAQ</h2>
+      </div>
       <details><summary>La participation est-elle vraiment gratuite ?</summary><p>Oui. L’inscription est gratuite. Ensuite, le gagnant échange avec Eurovilla.lt au sujet d’éventuels frais administratifs, variables selon le processus retenu.</p></details>
       <details><summary>Comment fonctionnent les points ?</summary><p>Tu obtiens des points à l’inscription, puis à chaque fois qu’un proche s’inscrit via ton lien (WhatsApp, email, parrainage). Plus de points = plus de probabilité au tirage — tout le monde participe.</p></details>
       <details><summary>Puis-je participer plusieurs fois ?</summary><p>Non, une seule participation par personne (email/téléphone uniques). Si tu es déjà inscrit(e), on synchronise automatiquement tes points.</p></details>
       <details><summary>Comment se déroule le tirage ?</summary><p>Le tirage a lieu à huis clos, supervision d’un professionnel habilité. Une attestation est publiée.</p></details>
-      <details><summary>Je peux voir la villa en vidéo ?</summary><p>Oui, une visite 360° est disponible : clique sur “Voir la vidéo 360°”.</p></details>
+      <details><summary>Je peux voir la villa en vidéo ?</summary><p>Oui — visite 360° disponible : clique sur “Voir la vidéo 360°”.</p></details>
     </div>
   </section>
 
@@ -318,16 +327,21 @@
     </div>
   </footer>
 
-  <!-- Modale vidéo 360° -->
+  <!-- Modale vidéo 360° (YouTube) -->
   <div class="modal" id="modal-360" aria-hidden="true" hidden>
     <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-360-title">
       <button class="modal-close" data-action="close-modal" aria-label="Fermer">×</button>
       <h3 id="modal-360-title">Visite 360°</h3>
       <div class="modal-body" id="modal-360-body">
-        <video controls playsinline preload="metadata" style="width:100%;max-height:70vh;border-radius:12px;outline:none;">
-          <source src="vidéos/vidéo%20360.ts" type="video/mp2t">
-          Votre navigateur peut ne pas lire le format .ts. Convertissez en .mp4 pour une compatibilité maximale.
-        </video>
+        <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;border:1px solid rgba(0,0,0,.1)">
+          <!-- Remplace VIDEO_ID par l’ID YouTube de ta vidéo 360 -->
+          <iframe src="https://www.youtube.com/embed/VIDEO_ID?rel=0&modestbranding=1"
+                  title="Visite 360° — Eurovilla.lt"
+                  style="position:absolute;inset:0;width:100%;height:100%;border:0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowfullscreen>
+          </iframe>
+        </div>
       </div>
     </div>
     <div class="modal-backdrop" data-action="close-modal"></div>
