@@ -14,6 +14,21 @@
   <meta property="og:type" content="website">
   <link rel="icon" type="image/png" href="Images/Image%20villa%20(2).jpg" />
   <script defer src="app.js"></script>
+  <style>
+    /* Petites aides de mise en forme liées à la demande (sans toucher à styles.css) */
+    .media-card .ratio{position:relative;width:100%;padding-top:56.25%;overflow:hidden;border-radius:14px}
+    .media-card .ratio iframe,
+    .media-card .ratio img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0}
+    .good-luck{margin-top:16px;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:16px}
+    .good-luck .glx{display:grid;grid-template-columns:120px 1fr;gap:16px;align-items:center}
+    @media (max-width:700px){.good-luck .glx{grid-template-columns:1fr}}
+    /* Mini animation pour l’emoji/icone: */
+    .gl-anim{width:110px;height:110px;display:block;margin:auto}
+    .gl-anim .wiggle{transform-origin:50% 80%;animation:wiggle 2.4s ease-in-out infinite}
+    .gl-anim .pulse{animation:pulse 2.4s ease-in-out infinite}
+    @keyframes wiggle{0%,100%{transform:rotate(0deg)} 50%{transform:rotate(-5deg)}}
+    @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.85}}
+  </style>
 </head>
 <body>
   <!-- Topbar -->
@@ -28,10 +43,7 @@
       <nav class="nav" aria-label="Navigation principale">
         <a href="#participer">Je participe</a>
         <a href="#points">Gagner des points</a>
-        <a href="#donateur">Nicolas</a>
-        <a href="#comment-ca-marche">Comment ça marche</a>
         <a href="#villa">La villa</a>
-        <a href="#faq">FAQ</a>
       </nav>
       <div class="header-cta">
         <a class="btn cta" href="#participer">Je tente ma chance</a>
@@ -63,7 +75,7 @@
   <section class="hero">
     <div class="container hero-grid">
       <div class="hero-copy">
-        <h1>Bienvenue ! Tente de gagner la villa de <span class="accent">Nicolas Bréant</span> à Mougins</h1>
+        <h1>Bienvenue ! Tente de gagner la villa de <span class="accent">Mougins</span></h1>
         <p class="lead">
           550 m² habitables • 6 suites • Piscine chauffée • Vues dégagées • Environnement calme.<br>
           Valeur estimée : <strong>5 900 000 €</strong>.
@@ -75,9 +87,13 @@
         </ul>
         <a class="cta xl" href="#participer">🎟️ Je tente ma chance</a>
       </div>
+
+      <!-- Carte média dédiée avec ratio pour éviter tout chevauchement -->
       <div class="hero-media">
         <figure class="media-card">
-          <img src="Images/Image%20villa%20(1).jpg" alt="Villa d’exception à Mougins avec piscine" />
+          <div class="ratio">
+            <img src="Images/Image%20villa%20(1).jpg" alt="Villa d’exception à Mougins avec piscine" />
+          </div>
           <figcaption>Visite 360° & galerie photos</figcaption>
           <button class="play360" aria-label="Ouvrir la vidéo 360°" data-open="modal-360">Voir la vidéo 360°</button>
         </figure>
@@ -151,12 +167,13 @@
               <option>Slovaquie</option><option>Slovénie</option><option>Suède</option>
             </select>
           </div>
-          <!-- (slider engagement supprimé) -->
+          <!-- (slot laissé vide exprès pour garder la grille propre) -->
+          <div class="field" aria-hidden="true"></div>
         </div>
 
         <div class="field checkbox">
           <input id="acceptRules" type="checkbox" required>
-          <label for="acceptRules">J’ai lu et j’accepte le <a href="reglement.html" target="_blank" rel="noopener">règlement du tirage</a> & la politique de confidentialité.</label>
+          <label for="acceptRules">J’ai lu et j’accepte le <a href="reglement.html" target="_blank" rel="noopener">règlement du tirage</a> &amp; la politique de confidentialité.</label>
         </div>
 
         <!-- remplis par app.js -->
@@ -169,37 +186,30 @@
           <p id="privacy-note" class="privacy">Inscription gratuite. Une seule participation par personne.</p>
         </div>
 
-        <!-- Bloc motivant + animation doigts croisés -->
-        <div class="motivation card-ui" aria-hidden="true">
-          <div class="motivation-grid">
-            <div class="motivation-svg" aria-hidden="true">
-              <!-- SVG "Crossed Fingers" fourni -->
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="220" height="220" preserveAspectRatio="xMidYMid meet" id="CrossedFingers">
-                <!-- (SVG condensé : même tracé que fourni) -->
-                <defs>
-                  <clipPath id="__lottie_element_2037"><rect width="1024" height="1024" x="0" y="0"/></clipPath>
-                  <!-- les defs internes abrégés ne modifient pas le rendu -->
-                </defs>
-                <g clip-path="url(#__lottie_element_2037)">
-                  <!-- Pour alléger, on garde les chemins principaux de ta version -->
-                  <g transform="translate(504.4,532)"><path fill="#FFC928" d="M257.2,63.201c24,27.2,46.4,70.399,32.8,134.399c-5.6,26.401-53.6,173.601-161.6,221.601C7.6,473.6-206,468.801-271.6,227.201c-32-116, -17.6-146.4 -16.8-247.2c0-72 -62.4-118.4 -122.4-65.6c-6.4-40 - -... (raccourci visuel)"/></g>
+        <p class="success" id="signup-success" role="alert" hidden>Inscription validée 🎉 Ton lien de parrainage arrive…</p>
+        <p class="error" id="signup-error" role="alert" hidden>Oups, un petit contretemps. Réessaie dans un instant.</p>
+
+        <!-- Panneau "Doigts croisés" avec SVG animé -->
+        <div class="good-luck" aria-live="polite">
+          <div class="glx">
+            <!-- SVG animé (léger wiggle + pulse) -->
+            <svg class="gl-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Doigts croisés">
+              <g class="wiggle">
+                <g class="pulse">
+                  <!-- (extrait simplifié et optimisé du visuel fourni) -->
+                  <path fill="#FFC928" d="M512 140c120 0 220 100 220 224 0 160-146 340-356 340-194 0-304-158-304-356C72 240 144 148 232 184c-12-80 72-116 112-40 40-8 104-4 112-40 20-72-36-168 0-208 36-40 88-8 112 24 24 32 80 116 112 208 20 60 32 132 32 212z"/>
+                  <path fill="#B55E18" d="M740 468c32-72 96-196 96-260 0-68-64-92-96-52-24 28-44 76-44 76s-28 52-52 100c-24 48-12 84 28 104 40 20 56 36 68 32z"/>
                 </g>
-              </svg>
-            </div>
-            <div class="motivation-copy">
-              <h3>🤞 Doigts croisés !</h3>
-              <p>Valide ton inscription, ton <strong>ID de parrainage secret</strong> sera créé et tes points démarreront automatiquement. Invite ensuite tes proches pour maximiser tes chances.</p>
-              <p class="muted">Ton ID n’est pas affiché publiquement : il sert au système pour reconnaître tes filleuls même s’ils s’inscrivent ailleurs.</p>
+              </g>
+            </svg>
+
+            <div>
+              <h3 style="margin:0 0 4px 0">🤞 Doigts croisés !</h3>
+              <p style="margin:0">Valide ton inscription, ton <strong>ID de parrainage secret</strong> sera créé et tes points démarreront automatiquement. Invite ensuite tes proches pour maximiser tes chances.</p>
+              <p style="margin:6px 0 0 0;color:var(--muted)">Ton ID n’est pas affiché publiquement : il sert au système pour reconnaître tes filleuls même s’ils s’inscrivent ailleurs.</p>
             </div>
           </div>
         </div>
-
-        <p class="success" id="signup-success" role="alert" hidden>
-          Inscription validée 🎉 Ton lien de parrainage arrive…
-        </p>
-        <p class="error" id="signup-error" role="alert" hidden>
-          Oups, un petit contretemps. Réessaie dans un instant.
-        </p>
       </form>
     </div>
   </section>
@@ -221,36 +231,23 @@
         <div class="progress-steps"><span>0 pt</span><span>5 pts</span><span>15 pts</span><span>30 pts</span><span>50 pts</span></div>
       </div>
 
-      <!-- Mini-dashboard live (hooks pour le JS) -->
       <div class="cards">
         <article class="card">
-          <h3>Ton statut</h3>
-          <ul class="stats-list">
-            <li>🎯 Points : <strong id="me-points">1</strong></li>
-            <li>👥 Filleuls directs (L1) : <strong id="me-referrals-l1">0</strong></li>
-            <li>↪︎ Filleuls indirects (L2) : <strong id="me-referrals-l2">0</strong></li>
-            <li>ID de parrainage (secret) : <code id="my-public-id">—</code></li>
-          </ul>
-          <small class="muted">Les points s’actualisent en direct (toutes les 5s).</small>
+          <h3>Partage WhatsApp</h3>
+          <p>Chaque inscription via ton lien WhatsApp = <strong>+2 points</strong>.</p>
+          <button class="btn outline" data-action="share-whatsapp">Partager sur WhatsApp</button>
         </article>
-
         <article class="card">
-          <h3>Derniers filleuls</h3>
-          <ul id="me-referrals-list" class="referrals-list">
-            <li><em>Pas encore de filleuls</em></li>
-          </ul>
+          <h3>Invitation par email</h3>
+          <p>Chaque inscription confirmée depuis ton email = <strong>+2 points</strong>.</p>
+          <button class="btn outline" data-action="share-email">Inviter par email</button>
         </article>
-
         <article class="card">
           <h3>Lien de parrainage</h3>
           <p>Chaque filleul inscrit &amp; validé = <strong>+5 points</strong>.</p>
           <div class="ref-row">
             <input id="ref-link" class="ref-input" type="text" readonly value="https://eurovilla.lt/?r=xxxxx" aria-label="Lien de parrainage">
             <button class="btn" data-action="copy-ref">Copier</button>
-          </div>
-          <div class="share-row">
-            <button class="btn outline" data-action="share-whatsapp">Partager WhatsApp</button>
-            <button class="btn outline" data-action="share-email">Inviter par email</button>
           </div>
           <small>Astuce : explique pourquoi ce projet te plaît, ça donne envie de participer 😉</small>
         </article>
@@ -266,34 +263,6 @@
     </div>
   </section>
 
-  <!-- (3) NICOLAS -->
-  <section id="donateur" class="donor">
-    <div class="container donor-grid">
-      <img class="donor-photo" src="Images/Image%20villa%20(3).jpg" alt="Photo de Nicolas Bréant (illustration)" />
-      <div>
-        <h2>Nicolas Bréant — entrepreneur & esprit partageur</h2>
-        <p>Après la vente de sa start-up dans le secteur médical, Nicolas a beaucoup voyagé et partage aujourd’hui sa vie entre Lisbonne et Montréal. Il a choisi de transformer cette villa d’exception en Côte d’Azur en une opportunité simple et joyeuse : <em>la donner via un tirage au sort légal et transparent</em>, orchestré par Eurovilla.lt.</p>
-        <div class="quote">« J’aimerais que cette maison fasse le bonheur de quelqu’un. »</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- (4) COMMENT ÇA MARCHE -->
-  <section id="comment-ca-marche" class="howitworks">
-    <div class="container">
-      <div class="section-head">
-        <h2>Comment ça marche ?</h2>
-      </div>
-      <ol class="steps">
-        <li><h3>1) Inscris-toi</h3><p>Formulaire simple et gratuit (+18 ans). Tu reçois ton lien de parrainage.</p></li>
-        <li><h3>2) Gagne des points</h3><p>Partage par <strong>WhatsApp</strong> &amp; <strong>email</strong>, et utilise ton <strong>lien de parrainage</strong>. Les points s’ajoutent lorsque tes invités s’inscrivent.</p></li>
-        <li><h3>3) Tirage — 31/10/2025</h3><p>Procédure à huis clos, supervision d’un professionnel habilité. Attestation publiée.</p></li>
-        <li><h3>4) Annonce &amp; remise des clés</h3><p>Annonce officielle, contact par email/SMS/WhatsApp, accompagnement jusqu’à la remise des clés.</p></li>
-      </ol>
-      <div class="badge-row"><span class="badge">Supervisé</span><span class="badge">Transparence</span><span class="badge">Inscription gratuite</span></div>
-    </div>
-  </section>
-
   <!-- (5) VILLA -->
   <section id="villa" class="villa">
     <div class="container villa-grid">
@@ -303,7 +272,7 @@
           <li><strong>Valeur</strong> : 5 900 000 €</li>
           <li><strong>Surface habitable</strong> : 550 m² (≈ 5 920 sq ft)</li>
           <li><strong>Terrain</strong> : 3 176 m² (≈ 33 977 sq ft)</li>
-          <li><strong>Suites</strong> : 6 (chambres & salles d’eau)</li>
+          <li><strong>Suites</strong> : 6 (chambres &amp; salles d’eau)</li>
           <li><strong>Confort</strong> : Piscine chauffée, salle de cinéma, salle de sport, double garage</li>
           <li><strong>Atouts</strong> : Vue dégagée (montagnes, collines), exposition sud-ouest</li>
           <li><strong>Performance</strong> : DPE A (32) / GES A (1)</li>
@@ -320,20 +289,6 @@
     </div>
   </section>
 
-  <!-- (6) FAQ -->
-  <section id="faq" class="faq">
-    <div class="container">
-      <div class="section-head">
-        <h2>FAQ</h2>
-      </div>
-      <details><summary>La participation est-elle vraiment gratuite ?</summary><p>Oui. L’inscription est gratuite. Ensuite, le gagnant échange avec Eurovilla.lt au sujet d’éventuels frais administratifs, variables selon le processus retenu.</p></details>
-      <details><summary>Comment fonctionnent les points ?</summary><p>Tu obtiens des points à l’inscription, puis à chaque fois qu’un proche s’inscrit via ton lien (WhatsApp, email, parrainage). Plus de points = plus de probabilité au tirage — tout le monde participe.</p></details>
-      <details><summary>Puis-je participer plusieurs fois ?</summary><p>Non, une seule participation par personne (email/téléphone uniques). Si tu es déjà inscrit(e), on synchronise automatiquement tes points.</p></details>
-      <details><summary>Comment se déroule le tirage ?</summary><p>Le tirage a lieu à huis clos, supervision d’un professionnel habilité. Une attestation est publiée.</p></details>
-      <details><summary>Je peux voir la villa en vidéo ?</summary><p>Oui — visite 360° disponible : clique sur “Voir la vidéo 360°”.</p></details>
-    </div>
-  </section>
-
   <!-- CTA finale -->
   <section class="cta-final">
     <div class="container cta-grid">
@@ -347,14 +302,13 @@
     <div class="container footer-grid">
       <div class="foot-brand">
         <span class="logo">Eurovilla.lt</span>
-        <p class="foot-note">© Eurovilla.lt — Tirage officiel, transparence & accompagnement convivial.</p>
+        <p class="foot-note">© Eurovilla.lt — Tirage officiel, transparence &amp; accompagnement convivial.</p>
       </div>
       <nav class="foot-nav" aria-label="Navigation pied de page">
         <a href="#participer">Je participe</a>
         <a href="#points">Gagner des points</a>
-        <a href="#comment-ca-marche">Comment ça marche</a>
+        <a href="#villa">La villa</a>
         <a href="reglement.html" target="_blank" rel="noopener">Règlement</a>
-        <a href="#faq">FAQ</a>
         <a href="mailto:contact@eurovilla.lt">Contact</a>
       </nav>
       <div class="foot-cta">
