@@ -1,524 +1,500 @@
-/* ==========================================================
-   Eurovilla.lt — app.js (v5 smart)
-   - Anti-doublon (via backend) + fingerprint + IP + UA
-   - Inscription: log complet (date, pays, ip, device, referrer, campaign, canal)
-   - publicId secret (5-10 car.) utilisé dans ?r=
-   - Polling points (5s) + progression + L1/L2 + derniers filleuls + publicId
-   - Partage r/z/sn (nonce) + click logging d’arrivée
-   - Thème, countdown, modales, toasts
-   ========================================================== */
+/******************************************************
+ * Eurovilla.lt — Frontend app.js (v4)
+ * - Anti-doublon (email/tel) via backend
+ * - Points live (polling snapshot)
+ * - Parrainage: resolve ?r= (publicId) -> userId
+ * - Journal de clics / partage avec nonce
+ ******************************************************/
 
+/** ================== CONFIG ================== **/
 const API = {
-  // ⚠️ Mets ici l’URL de ton déploiement Apps Script WebApp:
-  BASE: "https://script.google.com/macros/s/AKfycbx0PahxiURVZ_110-KaOsJEdP0DduSqwz0dxTgQ1R3eS4uX0TKiW3HI6k_beXLrsyJFig/exec",
-  TIMEOUT_MS: 12000,
-  RETRIES: 2
+  BASE: "https://script.google.com/macros/s/PASTE_YOUR_DEPLOYMENT_ID/exec", // <-- À remplacer
+  DRAW_ISO: "2025-10-31T23:59:59Z",
+  POLL_MS: 5000
 };
 
-const DRAW_DATE = new Date("2025-10-31T23:59:59");
-const POLL_MS = 5000;
-const POINTS_MAX_VISUAL = 50;
+const DOM = {
+  countdown: {
+    d: () => document.getElementById("d"),
+    h: () => document.getElementById("h"),
+    m: () => document.getElementById("m"),
+    s: () => document.getElementById("s"),
+  },
+  counterLeft: () => document.getElementById("counter-left"),
+  form: () => document.getElementById("signup-form"),
+  success: () => document.getElementById("signup-success"),
+  error: () => document.getElementById("signup-error"),
+  score: () => document.getElementById("score-points"),
+  progressBar: () => document.getElementById("progress-bar"),
+  progressLabel: () => document.getElementById("progress-label"),
+  refLink: () => document.getElementById("ref-link"),
+  toggleTheme: () => document.getElementById("toggle-theme"),
+};
 
-/* ------------------ Helpers ------------------ */
-const $  = (s, c=document) => c.querySelector(s);
-const $$ = (s, c=document) => Array.from(c.querySelectorAll(s));
-const pad2 = n => String(n).padStart(2,"0");
-const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
-const nowISO = ()=> new Date().toISOString();
-const originRef = () => (document.referrer || "");
+/** ================== UTIL ================== **/
+const qs = (sel, el=document) => el.querySelector(sel);
+const qsa = (sel, el=document) => Array.from(el.querySelectorAll(sel));
 
-/* localStorage helpers */
-function setLS(k,v){ try{ localStorage.setItem(k, typeof v==="string"?v:JSON.stringify(v)); }catch{} }
-function getLS(k,def=null){ try{ const v=localStorage.getItem(k); if(v==null) return def; if((v.startsWith("{")||v.startsWith("["))) return JSON.parse(v); return v; }catch{return def;} }
-
-/* IDs, fingerprint */
-function uid(prefix="u_"){ return prefix + Math.random().toString(36).slice(2,10); }
-function simpleFingerprint(){
-  try{
-    const data=[navigator.userAgent,navigator.language,screen.width+"x"+screen.height,(Intl.DateTimeFormat().resolvedOptions().timeZone||"")].join("|");
-    let h=0; for(let i=0;i<data.length;i++){ h=((h<<5)-h)+data.charCodeAt(i); h|=0; }
-    return "fp_"+Math.abs(h);
-  }catch{ return "fp_unknown"; }
-}
-
-/* URL params & base64url */
-function getParam(name){ const u = new URL(location.href); return u.searchParams.get(name); }
-function toUrlParams(obj){
-  const p = new URLSearchParams();
-  Object.keys(obj).forEach(k=>{
-    const v = obj[k];
-    if (v === undefined || v === null) return;
-    if (Array.isArray(v)) v.forEach(x=> p.append(k, String(x)));
-    else p.append(k, String(v));
+function getParams() {
+  const out = {};
+  const q = location.search.slice(1).split("&").filter(Boolean);
+  q.forEach(kv=>{
+    const [k,v=""] = kv.split("=");
+    out[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g," "));
   });
-  return p;
+  return out;
 }
-function b64urlEncode(str){
-  try{ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
-  catch{ return ""; }
-}
-function b64urlDecode(str){
+
+function b64urlDecode(str=""){
   try{
-    const pad = str.length%4===2 ? "==" : str.length%4===3 ? "=" : "";
-    const s = str.replace(/-/g,"+").replace(/_/g,"/") + pad;
+    // web-safe: -_ au lieu de +/
+    const s = str.replace(/-/g, "+").replace(/_/g, "/");
     return decodeURIComponent(escape(atob(s)));
-  }catch{ return ""; }
+  }catch(_){ return ""; }
 }
 
-/* fetch utils (GET/POST sans preflight via urlencoded) */
-async function fetchJSON(url, opts={}, retries=API.RETRIES){
-  const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort(), API.TIMEOUT_MS);
+function uuid(){
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11)
+    .replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+}
+
+function hashString(s){
+  let h=0; for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i); h|=0;}
+  return Math.abs(h).toString(36);
+}
+
+function deviceFingerprint(){
+  const localId = localStorage.getItem("ev_localId") || (function(){
+    const v = "l_" + uuid();
+    localStorage.setItem("ev_localId", v);
+    return v;
+  })();
+
+  const parts = [
+    navigator.userAgent,
+    navigator.language,
+    navigator.platform,
+    screen.width + "x" + screen.height,
+    String(Intl.DateTimeFormat().resolvedOptions().timeZone||""),
+    localId
+  ].join("|");
+  return hashString(parts);
+}
+
+function setHidden(id, val){ const el=document.getElementById(id); if(el) el.value = val||""; }
+
+/** ================== STORAGE ================== **/
+const store = {
+  getUser(){ try{ return JSON.parse(localStorage.getItem("ev_user")||"null"); }catch(_){ return null; } },
+  setUser(u){ localStorage.setItem("ev_user", JSON.stringify(u||null)); },
+  clearUser(){ localStorage.removeItem("ev_user"); }
+};
+
+/** ================== API helpers ================== **/
+async function apiPost(body){
+  const res = await fetch(API.BASE, {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify(body||{})
+  });
+  return res.json();
+}
+async function apiGet(params){
+  const url = API.BASE + "?" + new URLSearchParams(params).toString();
+  const res = await fetch(url);
+  return res.json();
+}
+
+/** ================== REF / CLICKS ================== **/
+function parseRefChainFromParams(params){
+  // Priorité: z (b64url "id1,id2,.."), sinon rc (csv), sinon ref (legacy userId)
+  if (params.z){
+    const csv = b64urlDecode(params.z);
+    if (csv) return csv.split(",").map(s=>s.trim()).filter(Boolean);
+  }
+  if (params.rc){
+    return String(params.rc).split(",").map(s=>s.trim()).filter(Boolean);
+  }
+  if (params.ref){
+    return [String(params.ref).trim()];
+  }
+  return [];
+}
+
+async function resolveReferrerUserIdFromPublicId(pid){
+  if (!pid) return "";
   try{
-    const res = await fetch(url, { ...opts, signal: ctrl.signal, mode:"cors", redirect:"follow" });
-    clearTimeout(t);
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    return await res.json().catch(()=> ({}));
-  }catch(err){
-    clearTimeout(t);
-    if(retries>0){ await sleep(300*(API.RETRIES-retries+1)); return fetchJSON(url, opts, retries-1); }
-    throw err;
+    const data = await apiGet({ action:"resolve", r: pid });
+    return (data && data.ok && data.userId) ? data.userId : "";
+  }catch(_){ return ""; }
+}
+
+async function logLandingClick(params, fp){
+  const pageUrl = location.href;
+  const userAgent = navigator.userAgent || "";
+  const channel = params.c || ""; // canal s’il est passé
+  const nonce   = params.sn || "";
+
+  // refChain depuis z/rc/ref
+  let chain = parseRefChainFromParams(params);
+
+  // Si ?r= (publicId court), on ne connaît pas le userId -> le backend gère déjà,
+  // mais on l’envoie quand même côté "pageUrl" pour traçabilité. (referrerId sera résolu côté serveur)
+  await apiPost({
+    action: "click",
+    pageUrl,
+    nonce,
+    refChain: chain.join(","),
+    fingerprint: fp,
+    userAgent,
+    ip: "",            // IP mieux captée côté serveur (headers)
+  }).catch(()=>{});
+}
+
+/** ================== THEME ================== **/
+function setupThemeToggle(){
+  const btn = DOM.toggleTheme();
+  if (!btn) return;
+  const KEY="ev_theme";
+  const root = document.documentElement;
+
+  function apply(t){
+    root.setAttribute("data-theme", t);
+    localStorage.setItem(KEY, t);
+  }
+  const saved = localStorage.getItem(KEY);
+  if (saved){ apply(saved); }
+
+  btn.addEventListener("click", ()=>{
+    const cur = root.getAttribute("data-theme") || "dark";
+    apply(cur==="dark" ? "light" : "dark");
+  });
+}
+
+/** ================== COUNTDOWN & STATS ================== **/
+function startCountdown(drawISO){
+  const end = new Date(drawISO || API.DRAW_ISO).getTime();
+  function tick(){
+    const now = Date.now();
+    let diff = Math.max(0, end - now);
+    const d = Math.floor(diff/(24*3600e3)); diff -= d*24*3600e3;
+    const h = Math.floor(diff/(3600e3));     diff -= h*3600e3;
+    const m = Math.floor(diff/(60e3));       diff -= m*60e3;
+    const s = Math.floor(diff/1000);
+    if (DOM.countdown.d()) DOM.countdown.d().textContent = String(d);
+    if (DOM.countdown.h()) DOM.countdown.h().textContent = String(h).padStart(2,"0");
+    if (DOM.countdown.m()) DOM.countdown.m().textContent = String(m).padStart(2,"0");
+    if (DOM.countdown.s()) DOM.countdown.s().textContent = String(s).padStart(2,"0");
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+async function loadStats(){
+  try{
+    const data = await apiGet({ action:"stats" });
+    if (data && data.ok){
+      if (DOM.counterLeft()) DOM.counterLeft().textContent = String(data.totalParticipants||0);
+      startCountdown(data.drawISO || API.DRAW_ISO);
+    } else {
+      startCountdown(API.DRAW_ISO);
+    }
+  }catch(_){
+    startCountdown(API.DRAW_ISO);
   }
 }
-async function postForm(url, data, retries=API.RETRIES){
-  const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort(), API.TIMEOUT_MS);
-  try{
-    const res = await fetch(url, {
-      method: "POST",
-      body: toUrlParams(data),
-      mode: "cors",
-      redirect: "follow",
-      signal: ctrl.signal
+
+/** ================== MODALS ================== **/
+function setupModals(){
+  qsa("[data-open]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const id = btn.getAttribute("data-open");
+      const m = document.getElementById(id);
+      if (!m) return;
+      m.hidden = false;
+      m.setAttribute("aria-hidden","false");
     });
-    clearTimeout(t);
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    return await res.json().catch(()=> ({}));
-  }catch(err){
-    clearTimeout(t);
-    if(retries>0){ await sleep(300*(API.RETRIES-retries+1)); return postForm(url, data, retries-1); }
-    throw err;
-  }
-}
-
-/* ------------------ IP publique (client) ------------------ */
-let CURRENT_IP = getLS("my_ip",""); // cache local
-async function resolveIP(){
-  if (CURRENT_IP) return CURRENT_IP;
-  try{
-    const ctrl = new AbortController();
-    const t = setTimeout(()=>ctrl.abort(), 3000);
-    const res = await fetch("https://api.ipify.org?format=json", {signal: ctrl.signal});
-    clearTimeout(t);
-    if(res.ok){
-      const j = await res.json();
-      CURRENT_IP = (j && j.ip) ? String(j.ip) : "";
-      if (CURRENT_IP) setLS("my_ip", CURRENT_IP);
-      return CURRENT_IP;
-    }
-  }catch(e){}
-  return "";
-}
-
-/* ------------------ Theme ------------------ */
-(function themeInit(){
-  const root=document.documentElement, btn=$("#toggle-theme");
-  const saved=getLS("theme");
-  if(saved==="light"||saved==="dark") root.setAttribute("data-theme", saved);
-  btn?.addEventListener("click", ()=>{
-    const cur=root.getAttribute("data-theme")==="light"?"dark":"light";
-    root.setAttribute("data-theme", cur); setLS("theme", cur);
   });
-})();
-
-/* ------------------ Countdown ------------------ */
-(function countdown(){
-  const d=$("#d"),h=$("#h"),m=$("#m"),s=$("#s"); if(!d||!h||!m||!s) return;
-  const tick=()=>{
-    const diff=Math.max(0, DRAW_DATE - new Date());
-    const D=Math.floor(diff/86400000), H=Math.floor((diff/3600000)%24), M=Math.floor((diff/60000)%60), S=Math.floor((diff/1000)%60);
-    d.textContent=D; h.textContent=pad2(H); m.textContent=pad2(M); s.textContent=pad2(S);
-  };
-  tick(); setInterval(tick,1000);
-})();
-
-/* ------------------ Modale 360° ------------------ */
-(function modal360(){
-  const modal=$("#modal-360");
-  const openBtns=$$("[data-open='modal-360']");
-  const closers=$$("[data-action='close-modal']");
-  function open(){ if(!modal) return; modal.removeAttribute("hidden"); modal.setAttribute("aria-hidden","false"); }
-  function close(){ if(!modal) return; modal.setAttribute("aria-hidden","true"); modal.setAttribute("hidden",""); }
-  openBtns.forEach(b=>b.addEventListener("click", open));
-  closers.forEach(c=>c.addEventListener("click", close));
-  document.addEventListener("keydown", e=>e.key==="Escape"&&close());
-})();
-
-/* ------------------ Toast ------------------ */
-function toast(msg){
-  let t=$("#toast-hint");
-  if(!t){
-    t=document.createElement("div"); t.id="toast-hint";
-    Object.assign(t.style,{position:"fixed",left:"50%",bottom:"24px",transform:"translateX(-50%)",background:"rgba(0,0,0,.75)",color:"#fff",padding:"10px 14px",borderRadius:"10px",zIndex:"9999",fontWeight:"700",backdropFilter:"blur(4px)",maxWidth:"90%",textAlign:"center"});
-    document.body.appendChild(t);
-  }
-  t.textContent=msg; t.style.opacity="1"; t.style.transition="none";
-  setTimeout(()=>{ t.style.transition="opacity .5s"; t.style.opacity="0"; }, 1600);
+  qsa("[data-action='close-modal'], .modal-backdrop").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      const modal = el.closest(".modal");
+      if(!modal) return;
+      modal.hidden = true;
+      modal.setAttribute("aria-hidden","true");
+      // Stopper la vidéo si c’est l’iframe 360
+      const ifr = modal.querySelector("iframe");
+      if (ifr){ ifr.src = ifr.src; }
+    });
+  });
 }
 
-/* ------------------ Points UI ------------------ */
-function setPointsUI(n){
-  const pts=Math.max(1, Number(n||1)); setLS("points_ui", pts);
-  const score=$("#score-points"); if(score) score.textContent=pts;
-  const me=$("#me-points"); if(me) me.textContent=pts;
-  const pct=Math.round(Math.min(100, pts/POINTS_MAX_VISUAL*100));
-  const bar=$("#progress-bar"), lab=$("#progress-label");
-  if(bar) bar.style.width=pct+"%"; if(lab) lab.textContent=pct+"%";
-}
-setPointsUI(getLS("points_ui", 1));
-
-/* ------------------ Referral (r/z/sn) ------------------ */
-function ownUserId(){ return getLS("userId",""); }
-function ownPublicId(){ return getLS("publicId",""); }
-
-function chainTokenFromUpline(upline){ return b64urlEncode((upline||[]).join(",")); }
-function uplineFromChainToken(z){ const csv=b64urlDecode(z||""); return csv? csv.split(",").map(s=>s.trim()).filter(Boolean) : []; }
-
-function prettyOrigin(){
-  if(location.origin && /^https?:\/\//i.test(location.origin)) return location.origin;
-  return "https://eurovilla.lt"; // fallback esthétique
-}
-function buildReferralLinkShort(channel){
-  // Utilise le publicId secret pour ?r=  (fiable côté backend)
-  const uid = ownUserId();
-  const pid = ownPublicId();
-  const chain = uid ? [uid].concat(getLS("upline", [])) : getLS("upline", []);
-  const z = chainTokenFromUpline(chain);
-  const basePath = location.pathname.replace(/^file:.*?\/([^/]+)$/, "/$1");
-  const base = new URL(prettyOrigin() + basePath);
-  if (pid) base.searchParams.set("r", pid);
-  base.searchParams.set("z", z);
-  base.searchParams.set("c", channel || "");
-  return base.toString();
+/** ================== SHARE ================== **/
+function buildReferralURL(publicId, opts={}){
+  const base = location.origin + location.pathname; // URL “propre” de la page
+  const u = new URL(base, location.href);
+  if (publicId) u.searchParams.set("r", publicId);
+  if (opts.channel) u.searchParams.set("c", opts.channel);
+  if (opts.nonce)   u.searchParams.set("sn", opts.nonce);
+  return u.toString();
 }
 
-/* Landing: capte r/z/rc/ref et log le click (une seule fois par ref) */
-(function referralLanding(){
-  const u = new URL(location.href);
-  const r  = u.searchParams.get("r");   // publicId court si présent
-  const z  = u.searchParams.get("z");
-  const rc = u.searchParams.get("rc");  // compat ancien
-  const ref= u.searchParams.get("ref"); // compat ancien
-
-  let chain=[];
-  if(z) chain = uplineFromChainToken(z);
-  else if(rc) chain = rc.split(",").filter(Boolean);
-  else if(ref) chain = [ref];
-
-  if(chain.length) setLS("upline", chain);
-
-  // log click 1x
-  const refKey = (chain[0]||"") + ":" + (z||rc||ref||"") + ":" + (r||"");
-  const key = "click_logged_"+refKey;
-  if((chain.length || r) && !getLS(key)){
-    postForm(API.BASE, {
-      action: "click",
-      timestamp: nowISO(),
-      referrerId: chain[0] || "",
-      refChain: chain.slice(1).join(","),
-      fingerprint: simpleFingerprint(),
-      pageUrl: location.href,
-      userAgent: navigator.userAgent
-    }).then(()=> setLS(key,1)).catch(()=>{});
-  }
-})();
-
-/* ------------------ Shares (nonces) & partages  ------------------ */
-async function shareStart(channel){
-  const uid = ownUserId();
-  const nonce = (uid? uid+"_":"") + "sn_" + Date.now().toString(36);
-  setLS("last_share_nonce", nonce);
-
-  // Lien court + nonce
-  const base = buildReferralLinkShort(channel || "cp");
-  const u = new URL(base); u.searchParams.set("sn", nonce);
-
-  postForm(API.BASE, { action:"share-start", nonce, userId: uid||"", channel, pageUrl: location.href }).catch(()=>{});
-  return { nonce, url: u.toString() };
-}
-async function pollAck(nonce, ms=6000){
-  const start=Date.now();
-  while(Date.now()-start<ms){
-    try{
-      const q=new URL(API.BASE); q.searchParams.set("action","share-ack"); q.searchParams.set("nonce",nonce);
-      const r=await fetchJSON(q.toString(), {method:"GET"});
-      if(r && r.ok && r.ack===true) return true;
-    }catch{}
-    await sleep(800);
-  }
-  return false;
-}
-async function shareWhatsApp(){
-  const { nonce, url } = await shareStart("wa");
-  const text = `Je participe à Eurovilla.lt pour gagner une villa d’exception ! Inscris-toi ici (ça me donne des points) : ${url}`;
-  const wa = `https://wa.me/?text=${encodeURIComponent(text)}`;
-  if(navigator.share){
-    try{ await navigator.share({ text, url }); pollAck(nonce).then(ok=> ok && toast("Lien WhatsApp ouvert ✅")); }
-    catch{ window.open(wa,"_blank"); }
-  }else{ window.open(wa,"_blank"); }
-}
-async function shareEmail(){
-  const { nonce, url } = await shareStart("em");
-  const subject="Rejoins-moi sur Eurovilla.lt (villa à gagner)";
-  const body   =`Hello,\n\nJe participe à Eurovilla.lt pour gagner une villa d’exception.\nInscris-toi ici (ça me donne des points) : ${url}\n\nC’est gratuit et le tirage est supervisé.\n`;
-  const mailto =`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.location.href = mailto;
-  pollAck(nonce).then(ok=> ok && toast("Lien email ouvert ✅"));
-}
-async function copyReferral(){
-  const { nonce, url } = await shareStart("cp");
-  try{ await navigator.clipboard.writeText(url); toast("Lien copié 👍"); }
-  catch{
-    const input=$("#ref-link"); if(input){ input.value=url; input.select(); document.execCommand("copy"); toast("Lien copié 👍"); }
-  }
-  pollAck(nonce).then(ok=> ok && toast("Premier clic détecté ✅"));
-}
-
-/* --------------- Stats Live (participants) --------------- */
-(async function syncStats(){
+async function shareStart(nonce, userId, channel){
   try{
-    const u=new URL(API.BASE); u.searchParams.set("action","stats");
-    const r=await fetchJSON(u.toString(), {method:"GET"});
-    const c=$("#counter-left"); if(c && r && r.totalParticipants!=null) c.textContent=r.totalParticipants.toLocaleString("fr-FR");
-  }catch{}
-})();
-
-/* --------------- Snapshot utilisateur (points + filleuls + publicId) --------------- */
-async function fetchUserSnapshot(userId){
-  try{
-    const u=new URL(API.BASE);
-    u.searchParams.set("action","user");
-    u.searchParams.set("userId", userId);
-    return await fetchJSON(u.toString(), { method:"GET" });
-  }catch{ return null; }
-}
-function updateUserUI(snapshot){
-  if(!snapshot || !snapshot.ok) return;
-  if(snapshot.points != null) setPointsUI(Number(snapshot.points));
-
-  // afficher publicId (secret) pour debug/UX
-  if (snapshot.publicId) {
-    setLS("publicId", snapshot.publicId);
-    const pidEl = $("#my-public-id");
-    if (pidEl) pidEl.textContent = snapshot.publicId;
-    // maj champ lien si présent
-    const refInput=$("#ref-link");
-    if (refInput) refInput.value = buildReferralLinkShort("cp");
-  }
-
-  const l1=$("#me-referrals-l1"); if(l1) l1.textContent = snapshot.referralsL1 ?? 0;
-  const l2=$("#me-referrals-l2"); if(l2) l2.textContent = snapshot.referralsL2 ?? 0;
-
-  const list=$("#me-referrals-list");
-  if(list && Array.isArray(snapshot.latestReferrals)){
-    list.innerHTML = snapshot.latestReferrals.map(r=>{
-      const name = r.firstName ? (r.firstName + (r.lastInitial? " "+r.lastInitial+"." : "")) : "Inscrit";
-      const emailMasked = r.emailMasked || "";
-      return `<li>${name} <small>${emailMasked}</small></li>`;
-    }).join("") || `<li><em>Pas encore de filleuls</em></li>`;
-  }
+    await apiPost({
+      action:"share-start",
+      nonce,
+      userId,
+      channel,
+      pageUrl: location.href
+    });
+  }catch(_){}
 }
 
-/* Polling (5s) */
-let pollTimer=null;
-function startUserPolling(){
-  const uid = ownUserId();
-  if(!uid) return;
-  const run = async ()=> updateUserUI(await fetchUserSnapshot(uid));
-  clearInterval(pollTimer);
-  run();
-  pollTimer = setInterval(run, POLL_MS);
-  document.addEventListener("visibilitychange", ()=> document.visibilityState==="visible" && run());
-  window.addEventListener("focus", run);
-}
+function setupSharing(){
+  const btnWA = qsa("[data-action='share-whatsapp']");
+  const btnEM = qsa("[data-action='share-email']");
+  const btnCopy = qsa("[data-action='copy-ref']");
 
-/* ------------------ Persistance formulaire ------------------ */
-function persistFormFields(){
-  const ids = ["firstName","lastName","email","phone","country"];
-  ids.forEach(id=>{
-    const el = $("#"+id);
-    if(!el) return;
-    const saved = getLS("form_"+id);
-    if(saved!=null) el.value = saved;
-    el.addEventListener("input", ()=> setLS("form_"+id, el.value));
-    if(el.tagName==="SELECT"){ el.addEventListener("change", ()=> setLS("form_"+id, el.value)); }
+  btnCopy.forEach(b=>{
+    b.addEventListener("click", async ()=>{
+      const el = DOM.refLink();
+      if (!el) return;
+      try{
+        await navigator.clipboard.writeText(el.value);
+        b.textContent = "Copié !";
+        setTimeout(()=> b.textContent="Copier", 1200);
+      }catch(_){}
+    });
   });
 
-  // cases contact
-  const contactBoxes = $$("input[name='contact']");
-  const savedContacts = getLS("form_contacts", []);
-  if(savedContacts && savedContacts.length){
-    contactBoxes.forEach(cb=> cb.checked = savedContacts.includes(cb.value));
-  }
-  contactBoxes.forEach(cb=> cb.addEventListener("change", ()=>{
-    const values = $$("input[name='contact']:checked").map(x=>x.value);
-    setLS("form_contacts", values);
-  }));
+  btnWA.forEach(b=>{
+    b.addEventListener("click", async ()=>{
+      const u = store.getUser();
+      if (!u || !u.publicId) return alert("Inscris-toi d’abord pour obtenir ton lien !");
+      const nonce = uuid();
+      await shareStart(nonce, u.userId, "wa");
+      const url = buildReferralURL(u.publicId, { channel:"wa", nonce });
+      const text = `Je participe au tirage Eurovilla (villa à Mougins) 🎟️ Viens tenter ta chance : ${url}`;
+      const wa = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(wa, "_blank", "noopener");
+    });
+  });
+
+  btnEM.forEach(b=>{
+    b.addEventListener("click", async ()=>{
+      const u = store.getUser();
+      if (!u || !u.publicId) return alert("Inscris-toi d’abord pour obtenir ton lien !");
+      const nonce = uuid();
+      await shareStart(nonce, u.userId, "em");
+      const url = buildReferralURL(u.publicId, { channel:"em", nonce });
+      const subject = "Eurovilla — je tente ma chance 🎟️";
+      const body = `Hello,\n\nJe participe au tirage Eurovilla (villa à Mougins). Inscris-toi ici : ${url}\n\nBonne chance !`;
+      location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    });
+  });
 }
 
-/* ------------------ Formulaire (REGISTER) ------------------ */
-(function formInit(){
-  const form=$("#signup-form");
-  persistFormFields();
+/** ================== PROGRESSION POINTS ================== **/
+function updatePointsUI(points){
+  const p = Number(points||0);
+  if (DOM.score()) DOM.score().textContent = String(p);
 
-  // Récupère éventuelle upline à l’arrivée
-  const z  = getParam("z");
-  const rc = getParam("rc");
-  const ref= getParam("ref");
-  let chain=[];
-  if(z) chain=b64urlDecode(z).split(",").filter(Boolean);
-  else if(rc) chain=rc.split(",").filter(Boolean);
-  else if(ref) chain=[ref];
-  if(chain.length){ setLS("upline", chain); $("#referrerId") && ($("#referrerId").value = chain[0]); }
+  const steps = [0,5,15,30,50];
+  const max = steps[steps.length-1];
+  const clamped = Math.max(0, Math.min(p, max));
 
-  // fingerprint
-  const fp = $("#fingerprint"); if(fp) fp.value = simpleFingerprint();
+  // Trouver la tranche
+  let i=0; while (i<steps.length-1 && clamped>steps[i+1]) i++;
+  const a = steps[i], b = steps[Math.min(i+1, steps.length-1)];
+  const pct = (clamped<=a) ? (a/max*100) :
+              (clamped>=b) ? (b/max*100) :
+              ((a + (clamped-a)*(1/(b-a))*(b-a)) / max * 100);
 
-  // bind partages
-  $("[data-action='share-whatsapp']")?.addEventListener("click", shareWhatsApp);
-  $("[data-action='share-email']")?.addEventListener("click", shareEmail);
-  $("[data-action='copy-ref']")?.addEventListener("click", copyReferral);
+  if (DOM.progressBar())  DOM.progressBar().style.width = `${(clamped/max*100).toFixed(0)}%`;
+  if (DOM.progressLabel())DOM.progressLabel().textContent = `${Math.round((clamped/max)*100)}%`;
+}
 
-  // si user déjà connu → hydrate le lien et démarre polling
-  const knownUid = ownUserId();
-  const refInput=$("#ref-link");
-  if(knownUid && refInput) refInput.value = buildReferralLinkShort("cp");
-  if(knownUid) startUserPolling();
+/** ================== SIGNUP ================== **/
+function getContactsSelection(){
+  return qsa("input[name='contact']:checked").map(i=>i.value).join(",");
+}
 
-  if(!form) return;
+async function onSubmitSignup(e){
+  e.preventDefault();
+  const f = DOM.form();
+  if (!f) return;
 
-  form.addEventListener("submit", async (e)=>{
-    e.preventDefault();
-    const success=$("#signup-success"), error=$("#signup-error");
-    success?.setAttribute("hidden",""); error?.setAttribute("hidden","");
+  // validations HTML5
+  if (!f.reportValidity()) return;
 
-    // récup champs
-    const fd = new FormData(form);
-    const payload = Object.fromEntries(fd.entries());
+  // champs
+  const firstName = f.firstName.value.trim();
+  const lastName  = f.lastName.value.trim();
+  const email     = f.email.value.trim();
+  const phone     = f.phone.value.trim();
+  const country   = f.country.value.trim();
+  const contactAll= getContactsSelection();
+  const accept    = qs("#acceptRules").checked;
 
-    // contacts = checkboxes
-    const contacts = $$("input[name='contact']:checked").map(x=>x.value);
-    if(!contacts.length){ contacts.push("email"); }
+  if (!accept){
+    alert("Merci d’accepter le règlement & la confidentialité.");
+    return;
+  }
 
-    // pays UE (même liste que backend)
-    const EU = ["Allemagne","Autriche","Belgique","Bulgarie","Chypre","Croatie","Danemark","Espagne","Estonie","Finlande","France","Grèce","Hongrie","Irlande","Italie","Lettonie","Lituanie","Luxembourg","Malte","Pays-Bas","Pologne","Portugal","Roumanie","Slovaquie","Slovénie","Suède"];
-    if(!EU.includes((payload.country||"").trim())){
-      error.textContent="Pays de résidence non éligible (UE uniquement).";
-      return error.removeAttribute("hidden");
-    }
+  // referrer / chain (déjà préparés au load)
+  const referrerId = f.referrerId.value || "";
+  const refChain   = (f.dataset.refChain ? f.dataset.refChain.split(",").filter(Boolean) : []);
 
-    // upline / attribution multi-niveaux
-    const upline = getLS("upline", []);
+  // empreinte + contexte
+  const fingerprint= f.fingerprint.value || deviceFingerprint();
+  const campaign   = f.campaign.value || "display_q4_2025";
+  const userAgent  = navigator.userAgent || "";
 
-    // canal d’acquisition (si présent dans l’URL)
-    const acqChannel = getParam("c") || "";
+  // UX
+  DOM.success().hidden = true;
+  DOM.error().hidden = true;
+  const submitBtn = f.querySelector("button[type='submit']");
+  const oldLabel = submitBtn.textContent;
+  submitBtn.disabled = true; submitBtn.textContent = "Validation…";
 
-    // IP (meilleur effort, non bloquant)
-    const ip = await resolveIP().catch(()=> "");
-
-    const req = {
+  try{
+    const payload = {
       action: "register",
-      firstName: (payload.firstName||"").trim(),
-      lastName:  (payload.lastName||"").trim(),
-      email:     (payload.email||"").trim(),
-      phone:     (payload.phone||"").trim(),
-      country:   (payload.country||"").trim(),
-      contactAll: contacts.join(","),
-
-      // attribution
-      referrerId: (upline[0]||""),
-      refChain: (upline.slice(1)||[]).join(","),
-
-      // signaux appareil
-      fingerprint: simpleFingerprint(),
-      userAgent: navigator.userAgent,
-
-      // contexte marketing
-      campaign: payload.campaign || "display_q4_2025",
-      acqChannel,                      // <- nouveau
-
-      // logs
-      ip,                              // <- côté client (meilleur effort)
-      source: "web",
-      timestamp: nowISO(),
-
-      // bonus debug
-      pageReferrer: originRef()
+      firstName, lastName, email, phone, country,
+      contactAll,
+      referrerId,
+      refChain,
+      fingerprint,
+      campaign,
+      acqChannel: "", // (optionnel) si tu veux pousser un canal d’acq
+      userAgent,
+      ip: "",         // IP côté serveur
+      source: "web"
     };
 
-    try{
-      const res = await postForm(API.BASE, req);
+    const data = await apiPost(payload);
 
-      if(res && res.ok){
-        // Nouvel inscrit: code=REGISTERED
-        // Doublon reconnu: code=ALREADY_REGISTERED (backend renvoie userId, publicId, points)
-        const serverUserId = res.userId || ownUserId() || uid();
-        setLS("userId", serverUserId);
-
-        if (res.publicId) setLS("publicId", res.publicId);
-        if (res.points != null) setPointsUI(Number(res.points));
-
-        // prépare lien (avec publicId si dispo)
-        const refInput=$("#ref-link");
-        if(refInput){ refInput.value = buildReferralLinkShort("cp"); }
-
-        // affiche publicId si retour (pour debug/UX)
-        if (res.publicId && $("#my-public-id")) $("#my-public-id").textContent = res.publicId;
-
-        // UX succès + ancre points
-        success?.removeAttribute("hidden");
-        $("#congrats-modal")?.removeAttribute("hidden");
-        $("#congrats-modal")?.setAttribute("aria-hidden","false");
-        $("#cta-more-points")?.addEventListener("click", ()=>{
-          location.hash="#points";
-          $("#congrats-modal")?.setAttribute("aria-hidden","true");
-          $("#congrats-modal")?.setAttribute("hidden","");
-        });
-
-        // démarre polling
-        startUserPolling();
-
-        // session “ouverte”
-        setLS("session_active", true);
-        toast(res.code==="ALREADY_REGISTERED" ? "Déjà inscrit : synchro de tes points ✅" : "Inscription synchronisée ✅");
-        location.hash="#points";
-      }else{
-        // message backend explicite le cas échéant
-        error.textContent = (res && (res.message || res.code)) ? (res.message || ("Erreur: "+res.code)) : "Impossible d’enregistrer pour le moment.";
-        error?.removeAttribute("hidden");
-      }
-    }catch(err){
-      console.error(err);
-      error.textContent="Réseau indisponible. Merci de réessayer.";
-      error?.removeAttribute("hidden");
+    if (!data || data.ok !== true){
+      throw new Error((data && data.code) || "SERVER_ERROR");
     }
-  });
-})();
 
-/* --------------- Bind global --------------- */
-document.addEventListener("DOMContentLoaded", ()=>{
-  // boutons partages (fallback)
-  $("[data-action='share-whatsapp']")?.addEventListener("click", shareWhatsApp);
-  $("[data-action='share-email']")?.addEventListener("click", shareEmail);
-  $("[data-action='copy-ref']")?.addEventListener("click", copyReferral);
+    // Les deux cas "REGISTERED" ou "ALREADY_REGISTERED" sont des réussites
+    if (data.code === "REGISTERED" || data.code === "ALREADY_REGISTERED"){
+      const user = {
+        userId: data.userId,
+        publicId: data.publicId || "",
+        points: Number(data.points||0)
+      };
+      store.setUser(user);
+      afterLoginOrSignup(user, {showCongrats: data.code==="REGISTERED"});
+      return;
+    }
 
-  // si déjà loggé, prépare le lien court (publicId si dispo)
-  const uid = ownUserId();
-  const refInput=$("#ref-link");
-  if(refInput && uid){ refInput.value = buildReferralLinkShort("cp"); }
+    throw new Error(data.code || "UNKNOWN");
+  }catch(err){
+    DOM.error().hidden = false;
+    console.error("Signup error:", err);
+  }finally{
+    submitBtn.disabled = false; submitBtn.textContent = oldLabel;
+  }
+}
 
-  // afficher publicId si déjà connu
-  const pid = ownPublicId();
-  if (pid && $("#my-public-id")) $("#my-public-id").textContent = pid;
+function afterLoginOrSignup(user, {showCongrats=false}={}){
+  // Afficher succès
+  DOM.success().hidden = false;
 
-  // session active → polling
-  if(uid && getLS("session_active")) startUserPolling();
-});
+  // Mettre à jour lien de parrainage
+  const url = buildReferralURL(user.publicId);
+  if (DOM.refLink()) DOM.refLink().value = url;
+
+  // Points init
+  updatePointsUI(user.points||0);
+
+  // Lancer le polling
+  startUserPolling(user.userId);
+
+  // Ouvrir modale si inscription fraîche
+  if (showCongrats){
+    const modal = document.getElementById("congrats-modal");
+    if (modal){ modal.hidden = false; modal.setAttribute("aria-hidden","false"); }
+  }
+}
+
+let pollTimer = null;
+async function pollUserOnce(userId){
+  try{
+    const data = await apiGet({ action:"user", userId });
+    if (data && data.ok){
+      // on maintient le store pour garder points/publicId à jour
+      const prev = store.getUser() || {};
+      const fresh = { userId: data.userId, publicId: data.publicId||prev.publicId||"", points: Number(data.points||0) };
+      store.setUser(fresh);
+      updatePointsUI(fresh.points);
+      // rafraîchir ref-link si besoin
+      if (fresh.publicId && DOM.refLink() && !DOM.refLink().value.includes(fresh.publicId)){
+        DOM.refLink().value = buildReferralURL(fresh.publicId);
+      }
+    }
+  }catch(e){
+    console.warn("Polling error:", e);
+  }
+}
+function startUserPolling(userId){
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(()=> pollUserOnce(userId), API.POLL_MS);
+  // tick immédiat
+  pollUserOnce(userId);
+}
+
+/** ================== INIT ================== **/
+async function init(){
+  setupThemeToggle();
+  setupModals();
+  setupSharing();
+
+  // Préremplissage fingerprint
+  setHidden("fingerprint", deviceFingerprint());
+
+  // Préparer referrer et refChain
+  const params = getParams();
+  const fp = deviceFingerprint();
+
+  // Journal de clic d’atterrissage (ne bloque pas)
+  logLandingClick(params, fp);
+
+  // Déduire refChain (illimité) depuis URL
+  const refChain = parseRefChainFromParams(params);
+
+  // Si ?r=publicId -> résoudre en userId pour le L1
+  let referrerId = "";
+  if (params.r){
+    try{
+      referrerId = await resolveReferrerUserIdFromPublicId(params.r);
+    }catch(_){}
+  }else if (refChain.length){
+    // si rc/ref présent et qu’on veut forcer L1 = premier de la chaine
+    referrerId = refChain[0] || "";
+  }
+
+  // stocker dans le formulaire
+  setHidden("referrerId", referrerId);
+  const form = DOM.form();
+  if (form) form.dataset.refChain = refChain.join(",");
+
+  // Stats + countdown
+  loadStats();
+
+  // Restore session utilisateur si déjà inscrit
+  const u = store.getUser();
+  if (u && u.userId){
+    afterLoginOrSignup(u, {showCongrats:false});
+  }
+
+  // Soumission formulaire
+  if (DOM.form()){
+    DOM.form().addEventListener("submit", onSubmitSignup);
+  }
+}
+
+// Démarrage
+document.addEventListener("DOMContentLoaded", init);
