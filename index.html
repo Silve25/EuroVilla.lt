@@ -3,40 +3,43 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Eurovilla.lt — Gagne la villa d’exception à Mougins</title>
-  <meta name="description" content="Inscris-toi gratuitement au tirage Eurovilla.lt : somptueuse villa à Mougins (550 m², 6 suites, piscine, vues), valeur ~5 900 000 €. Multiplie tes points via WhatsApp, email et parrainage. Tirage le 31 octobre 2025.">
+  <title>Eurovilla.lt — Gagne une villa d’exception à Mougins</title>
+  <meta name="description" content="Inscris-toi gratuitement au tirage Eurovilla.lt : magnifique villa à Mougins (550 m², 6 suites, piscine, vue), valeur ~5 900 000 €. Multiplie tes points via WhatsApp, email et parrainage. Tirage le 31 octobre 2025.">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
   <meta property="og:title" content="Gagne une villa à Mougins — Eurovilla.lt">
   <meta property="og:description" content="Tirage supervisé. 550 m², 6 suites, piscine, valeur ~5 900 000 €. Inscris-toi et multiplie tes points !">
-  <meta property="og:image" content="Images/Image%20villa%20(1).jpg">
+  <meta property="og:image" content="Images/og-villa.jpg">
   <meta property="og:type" content="website">
-  <link rel="icon" type="image/png" href="Images/Image%20villa%20(2).jpg" />
-  <script defer src="app.js"></script>
+  <link rel="icon" type="image/png" href="Images/favicon.png" />
+
+  <!-- Bounce subtil sur les CTA (au clic) -->
   <style>
-    /* Petites aides de mise en forme liées à la demande (sans toucher à styles.css) */
-    .media-card .ratio{position:relative;width:100%;padding-top:56.25%;overflow:hidden;border-radius:14px}
-    .media-card .ratio iframe,
-    .media-card .ratio img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0}
-    .good-luck{margin-top:16px;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:16px}
-    .good-luck .glx{display:grid;grid-template-columns:120px 1fr;gap:16px;align-items:center}
-    @media (max-width:700px){.good-luck .glx{grid-template-columns:1fr}}
-    /* Mini animation pour l’emoji/icone: */
-    .gl-anim{width:110px;height:110px;display:block;margin:auto}
-    .gl-anim .wiggle{transform-origin:50% 80%;animation:wiggle 2.4s ease-in-out infinite}
-    .gl-anim .pulse{animation:pulse 2.4s ease-in-out infinite}
-    @keyframes wiggle{0%,100%{transform:rotate(0deg)} 50%{transform:rotate(-5deg)}}
-    @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.85}}
+    .btn.bounce { transform: translateY(0); transition: transform .15s ease; }
+    .btn.bounce:active { transform: translateY(1px) scale(0.98); }
+    /* micro “pop” après clic (ajouté par JS) */
+    .btn.is-popping { animation: pop .28s ease; }
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.04)} 100%{transform:scale(1)} }
+    /* Carte vidéo 360 mieux cadrée */
+    .media-card { display:block; border-radius:16px; overflow:hidden; border:1px solid var(--border); background:var(--surface-2); }
+    .media-card figure { margin:0 }
+    .media-card .media-thumb { aspect-ratio: 16/9; width:100%; object-fit:cover; display:block; }
+    .media-card .media-foot { display:flex; align-items:center; justify-content:space-between; padding:12px 14px }
+    .play360 { margin-left:auto }
+    /* Bandeau compteur: placeholder élégant */
+    .live-join .placeholder { opacity:.7; font-style:italic }
   </style>
+
+  <script defer src="app.js"></script>
 </head>
 <body>
   <!-- Topbar -->
   <div class="topbar" role="status" aria-live="polite">
-    🎉 Félicitations à nos nouveaux inscrits ! Tirage au sort prévu le 31 octobre 2025
+    🎉 Tirage au sort le <strong>31 octobre 2025</strong> — transparence & supervision indépendantes
   </div>
 
-  <!-- Header -->
+  <!-- Header (simplifié) -->
   <header class="site-header">
     <div class="container header-grid">
       <a class="brand" href="#"><span class="logo">Eurovilla.lt</span></a>
@@ -44,9 +47,10 @@
         <a href="#participer">Je participe</a>
         <a href="#points">Gagner des points</a>
         <a href="#villa">La villa</a>
+        <a href="reglement.html" target="_blank" rel="noopener">Règlement</a>
       </nav>
       <div class="header-cta">
-        <a class="btn cta" href="#participer">Je tente ma chance</a>
+        <a class="btn cta bounce" href="#participer">Je tente ma chance</a>
         <button class="mode-toggle" id="toggle-theme" aria-label="Basculer clair/sombre">☀︎ / 🌙</button>
       </div>
     </div>
@@ -67,7 +71,9 @@
           </div>
         </div>
       </div>
-      <div class="live-join"><span id="counter-left">0</span> participants déjà inscrits</div>
+      <div class="live-join">
+        <span id="counter-left" class="placeholder">Chargement…</span>
+      </div>
     </div>
   </section>
 
@@ -75,55 +81,48 @@
   <section class="hero">
     <div class="container hero-grid">
       <div class="hero-copy">
-        <h1>Bienvenue ! Tente de gagner la villa de <span class="accent">Mougins</span></h1>
+        <h1>Participe et tente de gagner une villa de <span class="accent">rêve à Mougins</span></h1>
         <p class="lead">
-          550 m² habitables • 6 suites • Piscine chauffée • Vues dégagées • Environnement calme.<br>
+          550 m² • 6 suites • Piscine chauffée • Vue dégagée. <br>
           Valeur estimée : <strong>5 900 000 €</strong>.
         </p>
         <ul class="bullets">
-          <li>Inscription <strong>gratuite</strong></li>
+          <li>Inscription <strong>gratuite</strong> & unique</li>
           <li>Gagne des <strong>points</strong> via WhatsApp, email & parrainage</li>
-          <li>Tirage <strong>transparent</strong> (supervisé, attestation publiée)</li>
+          <li>Tirage <strong>transparent</strong> — attestation publiée</li>
         </ul>
-        <a class="cta xl" href="#participer">🎟️ Je tente ma chance</a>
+        <a class="btn cta xl bounce" href="#participer">🎟️ Je m’inscris</a>
       </div>
 
-      <!-- Carte média dédiée avec ratio pour éviter tout chevauchement -->
-      <div class="hero-media">
-        <figure class="media-card">
-          <div class="ratio">
-            <img src="Images/Image%20villa%20(1).jpg" alt="Villa d’exception à Mougins avec piscine" />
-          </div>
-          <figcaption>Visite 360° & galerie photos</figcaption>
-          <button class="play360" aria-label="Ouvrir la vidéo 360°" data-open="modal-360">Voir la vidéo 360°</button>
-        </figure>
-        <div class="hero-stats">
-          <div class="stat"><span>5 900 000 €</span><small>Valeur estimée</small></div>
-          <div class="stat"><span>31/10/2025</span><small>Date du tirage</small></div>
-          <div class="stat"><span>+ points</span><small>WhatsApp & email</small></div>
+      <!-- Carte média 360° (optimisée, autonome) -->
+      <aside class="media-card" aria-label="Vidéo 360°">
+        <img class="media-thumb" src="Images/cover-360.jpg" alt="Aperçu vidéo 360° de la villa" />
+        <div class="media-foot">
+          <span>Visite 360°</span>
+          <button class="btn outline bounce play360" aria-label="Ouvrir la vidéo 360°" data-open="modal-360">Regarder</button>
         </div>
-      </div>
+      </aside>
     </div>
   </section>
 
-  <!-- (1) FORMULAIRE EN PREMIER -->
+  <!-- (1) FORMULAIRE -->
   <section id="participer" class="signup">
     <div class="container">
       <div class="section-head">
         <h2>🎟️ Inscription</h2>
-        <p>Participe gratuitement maintenant. Tu recevras ton <strong>lien de parrainage</strong> pour gagner plus de points.</p>
+        <p>Inscris-toi gratuitement. Tu recevras ton <strong>lien de parrainage</strong> pour augmenter tes points.</p>
       </div>
 
       <form id="signup-form" class="form card-ui" novalidate aria-describedby="privacy-note">
         <div class="grid-2">
           <div class="field has-validation">
             <label for="firstName">Prénom *</label>
-            <input id="firstName" name="firstName" type="text" placeholder="Tape ton prénom" required autocomplete="given-name">
+            <input id="firstName" name="firstName" type="text" placeholder="Ton prénom" required autocomplete="given-name">
             <small class="error-msg">Merci d’indiquer ton prénom</small>
           </div>
           <div class="field has-validation">
             <label for="lastName">Nom *</label>
-            <input id="lastName" name="lastName" type="text" placeholder="Tape ton nom" required autocomplete="family-name">
+            <input id="lastName" name="lastName" type="text" placeholder="Ton nom" required autocomplete="family-name">
             <small class="error-msg">Merci d’indiquer ton nom</small>
           </div>
         </div>
@@ -141,7 +140,7 @@
           </div>
         </div>
 
-        <!-- Canaux (cases à cocher) -->
+        <!-- Canaux -->
         <fieldset class="field">
           <legend>Comment te contacter si tu gagnes ?</legend>
           <div class="checks">
@@ -156,70 +155,65 @@
           <div class="field">
             <label for="country">Pays de résidence (UE) *</label>
             <select id="country" name="country" required>
-              <option value="" disabled>Sélectionner un pays</option>
+              <option value="" disabled selected>Sélectionner un pays</option>
               <option>Allemagne</option><option>Autriche</option><option>Belgique</option><option>Bulgarie</option>
               <option>Chypre</option><option>Croatie</option><option>Danemark</option><option>Espagne</option>
               <option>Estonie</option><option>Finlande</option><option>France</option><option>Grèce</option>
               <option>Hongrie</option><option>Irlande</option><option>Italie</option><option>Lettonie</option>
-              <option selected>Lituanie</option>
-              <option>Luxembourg</option><option>Malte</option><option>Pays-Bas</option>
+              <option>Lituanie</option><option>Luxembourg</option><option>Malte</option><option>Pays-Bas</option>
               <option>Pologne</option><option>Portugal</option><option>Roumanie</option>
               <option>Slovaquie</option><option>Slovénie</option><option>Suède</option>
             </select>
           </div>
-          <!-- (slot laissé vide exprès pour garder la grille propre) -->
-          <div class="field" aria-hidden="true"></div>
         </div>
 
         <div class="field checkbox">
           <input id="acceptRules" type="checkbox" required>
-          <label for="acceptRules">J’ai lu et j’accepte le <a href="reglement.html" target="_blank" rel="noopener">règlement du tirage</a> &amp; la politique de confidentialité.</label>
+          <label for="acceptRules">J’ai lu et j’accepte le <a href="reglement.html" target="_blank" rel="noopener">règlement</a> & la politique de confidentialité.</label>
         </div>
 
-        <!-- remplis par app.js -->
+        <!-- Remplis par app.js -->
         <input type="hidden" id="referrerId" name="referrerId" value="">
         <input type="hidden" id="fingerprint" name="fingerprint" value="">
         <input type="hidden" id="campaign" name="campaign" value="display_q4_2025">
 
         <div class="actions-row">
-          <button class="btn xl" type="submit">Je valide mon inscription</button>
+          <button class="btn xl bounce" type="submit">Je valide mon inscription</button>
           <p id="privacy-note" class="privacy">Inscription gratuite. Une seule participation par personne.</p>
         </div>
 
-        <p class="success" id="signup-success" role="alert" hidden>Inscription validée 🎉 Ton lien de parrainage arrive…</p>
-        <p class="error" id="signup-error" role="alert" hidden>Oups, un petit contretemps. Réessaie dans un instant.</p>
-
-        <!-- Panneau "Doigts croisés" avec SVG animé -->
-        <div class="good-luck" aria-live="polite">
-          <div class="glx">
-            <!-- SVG animé (léger wiggle + pulse) -->
-            <svg class="gl-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Doigts croisés">
-              <g class="wiggle">
-                <g class="pulse">
-                  <!-- (extrait simplifié et optimisé du visuel fourni) -->
-                  <path fill="#FFC928" d="M512 140c120 0 220 100 220 224 0 160-146 340-356 340-194 0-304-158-304-356C72 240 144 148 232 184c-12-80 72-116 112-40 40-8 104-4 112-40 20-72-36-168 0-208 36-40 88-8 112 24 24 32 80 116 112 208 20 60 32 132 32 212z"/>
-                  <path fill="#B55E18" d="M740 468c32-72 96-196 96-260 0-68-64-92-96-52-24 28-44 76-44 76s-28 52-52 100c-24 48-12 84 28 104 40 20 56 36 68 32z"/>
-                </g>
-              </g>
-            </svg>
-
-            <div>
-              <h3 style="margin:0 0 4px 0">🤞 Doigts croisés !</h3>
-              <p style="margin:0">Valide ton inscription, ton <strong>ID de parrainage secret</strong> sera créé et tes points démarreront automatiquement. Invite ensuite tes proches pour maximiser tes chances.</p>
-              <p style="margin:6px 0 0 0;color:var(--muted)">Ton ID n’est pas affiché publiquement : il sert au système pour reconnaître tes filleuls même s’ils s’inscrivent ailleurs.</p>
-            </div>
-          </div>
-        </div>
+        <!-- États UI (pilotés par app.js) -->
+        <p class="success" id="signup-success" role="alert" hidden>
+          Inscription validée 🎉 Ton lien de parrainage arrive…
+        </p>
+        <p class="info" id="signup-already" role="alert" hidden>
+          Oups ! Tu es déjà inscrit(e) 😉 Nous avons synchronisé tes points et conservé ton ID de parrainage.
+        </p>
+        <p class="error" id="signup-error" role="alert" hidden>
+          Petit contretemps. Réessaie dans un instant.
+        </p>
       </form>
+
+      <!-- Carte “confiance” (plus d’animation ratée) -->
+      <div class="card-ui soft-note" style="margin-top:16px">
+        <h4 style="margin:0 0 6px">👍 C’est noté !</h4>
+        <p style="margin:0">
+          Valide ton inscription : un <strong>ID de parrainage secret</strong> te sera attribué automatiquement.
+          Invite ensuite tes proches pour <strong>gagner des points</strong> et maximiser tes chances.
+        </p>
+        <p style="margin:.35rem 0 0;opacity:.8">
+          Ton ID n’est pas public : il sert au système pour reconnaître tes filleuls, même s’ils s’inscrivent ailleurs.
+        </p>
+      </div>
     </div>
   </section>
 
-  <!-- (2) MULTIPLIER SES POINTS -->
+  <!-- (2) POINTS -->
   <section id="points" class="points">
     <div class="container">
       <div class="section-head">
         <h2>Gagne plus de <span class="accent">points</span></h2>
-        <p>Invite tes proches : chaque inscription via ton lien augmente tes points et ta probabilité au tirage.</p>
+        <p>Chaque inscription via ton lien augmente tes points et donc ta probabilité au tirage.</p>
       </div>
 
       <div class="progress-wrap" aria-label="Progression de tes points" aria-live="polite">
@@ -235,19 +229,19 @@
         <article class="card">
           <h3>Partage WhatsApp</h3>
           <p>Chaque inscription via ton lien WhatsApp = <strong>+2 points</strong>.</p>
-          <button class="btn outline" data-action="share-whatsapp">Partager sur WhatsApp</button>
+          <button class="btn outline bounce" data-action="share-whatsapp">Partager sur WhatsApp</button>
         </article>
         <article class="card">
           <h3>Invitation par email</h3>
           <p>Chaque inscription confirmée depuis ton email = <strong>+2 points</strong>.</p>
-          <button class="btn outline" data-action="share-email">Inviter par email</button>
+          <button class="btn outline bounce" data-action="share-email">Inviter par email</button>
         </article>
         <article class="card">
           <h3>Lien de parrainage</h3>
-          <p>Chaque filleul inscrit &amp; validé = <strong>+5 points</strong>.</p>
+          <p>Chaque filleul validé = <strong>+5 points</strong>.</p>
           <div class="ref-row">
             <input id="ref-link" class="ref-input" type="text" readonly value="https://eurovilla.lt/?r=xxxxx" aria-label="Lien de parrainage">
-            <button class="btn" data-action="copy-ref">Copier</button>
+            <button class="btn bounce" data-action="copy-ref">Copier</button>
           </div>
           <small>Astuce : explique pourquoi ce projet te plaît, ça donne envie de participer 😉</small>
         </article>
@@ -256,35 +250,35 @@
       <div class="score">
         <div class="score-box">
           <div>🎯 Tes points :</div>
-          <div class="score-value" id="score-points" aria-live="polite">1</div>
+          <div class="score-value" id="score-points" aria-live="polite">—</div>
         </div>
-        <p class="score-note">Les points augmentent ta probabilité au tirage, mais tout le monde reste en lice.</p>
+        <p class="score-note">Plus de points = plus de chances. Tout le monde reste éligible au tirage.</p>
       </div>
     </div>
   </section>
 
-  <!-- (5) VILLA -->
+  <!-- (3) VILLA -->
   <section id="villa" class="villa">
     <div class="container villa-grid">
       <div>
-        <h2>La villa — Mougins (Alpes-Maritimes, 06250)</h2>
+        <h2>La villa — Mougins (Alpes-Maritimes)</h2>
         <ul class="specs">
           <li><strong>Valeur</strong> : 5 900 000 €</li>
-          <li><strong>Surface habitable</strong> : 550 m² (≈ 5 920 sq ft)</li>
-          <li><strong>Terrain</strong> : 3 176 m² (≈ 33 977 sq ft)</li>
-          <li><strong>Suites</strong> : 6 (chambres &amp; salles d’eau)</li>
-          <li><strong>Confort</strong> : Piscine chauffée, salle de cinéma, salle de sport, double garage</li>
-          <li><strong>Atouts</strong> : Vue dégagée (montagnes, collines), exposition sud-ouest</li>
+          <li><strong>Surface</strong> : 550 m²</li>
+          <li><strong>Terrain</strong> : 3 176 m²</li>
+          <li><strong>Suites</strong> : 6</li>
+          <li><strong>Confort</strong> : Piscine chauffée, cinéma, salle de sport, double garage</li>
+          <li><strong>Atouts</strong> : Vue dégagée, exposition sud-ouest</li>
           <li><strong>Performance</strong> : DPE A (32) / GES A (1)</li>
           <li><strong>Réf.</strong> : VBE230011</li>
         </ul>
         <p>Cadre privilégié, prestations haut de gamme, terrasses ensoleillées, jardin paysager. À quelques minutes de Cannes et ~30 min de l’aéroport de Nice.</p>
       </div>
       <div class="gallery" aria-label="Galerie photos de la villa">
-        <img src="Images/Image%20villa%20(4).jpg" alt="Salon lumineux" />
-        <img src="Images/Image%20villa%20(5).jpg" alt="Cuisine contemporaine" />
-        <img src="Images/Image%20villa%20(6).jpg" alt="Piscine et terrasse" />
-        <img src="Images/Image%20villa%20(7).jpg" alt="Suite élégante" />
+        <img src="Images/villa-1.jpg" alt="Salon lumineux" />
+        <img src="Images/villa-2.jpg" alt="Cuisine contemporaine" />
+        <img src="Images/villa-3.jpg" alt="Piscine et terrasse" />
+        <img src="Images/villa-4.jpg" alt="Suite élégante" />
       </div>
     </div>
   </section>
@@ -293,7 +287,7 @@
   <section class="cta-final">
     <div class="container cta-grid">
       <div><h2>On s’y met ?</h2><p>Valide ton inscription, récupère ton lien et invite tes proches. Bonne chance ✨</p></div>
-      <a class="btn xl" href="#participer">Je tente ma chance</a>
+      <a class="btn xl bounce" href="#participer">Je tente ma chance</a>
     </div>
   </section>
 
@@ -302,7 +296,7 @@
     <div class="container footer-grid">
       <div class="foot-brand">
         <span class="logo">Eurovilla.lt</span>
-        <p class="foot-note">© Eurovilla.lt — Tirage officiel, transparence &amp; accompagnement convivial.</p>
+        <p class="foot-note">© Eurovilla.lt — Tirage officiel, transparence & accompagnement convivial.</p>
       </div>
       <nav class="foot-nav" aria-label="Navigation pied de page">
         <a href="#participer">Je participe</a>
@@ -312,20 +306,19 @@
         <a href="mailto:contact@eurovilla.lt">Contact</a>
       </nav>
       <div class="foot-cta">
-        <a class="btn" href="#participer">Je m’inscris</a>
-        <a class="btn outline" href="#points">Gagner des points</a>
+        <a class="btn bounce" href="#participer">Je m’inscris</a>
+        <a class="btn outline bounce" href="#points">Gagner des points</a>
       </div>
     </div>
   </footer>
 
-  <!-- Modale vidéo 360° (YouTube) -->
+  <!-- Modale vidéo 360° -->
   <div class="modal" id="modal-360" aria-hidden="true" hidden>
     <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-360-title">
       <button class="modal-close" data-action="close-modal" aria-label="Fermer">×</button>
       <h3 id="modal-360-title">Visite 360°</h3>
       <div class="modal-body" id="modal-360-body">
         <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;border:1px solid rgba(0,0,0,.1)">
-          <!-- Remplace VIDEO_ID par l’ID YouTube de ta vidéo 360 -->
           <iframe src="https://www.youtube.com/embed/VIDEO_ID?rel=0&modestbranding=1"
                   title="Visite 360° — Eurovilla.lt"
                   style="position:absolute;inset:0;width:100%;height:100%;border:0"
@@ -338,17 +331,34 @@
     <div class="modal-backdrop" data-action="close-modal"></div>
   </div>
 
-  <!-- Modale “Félicitations” (auto) -->
+  <!-- Modale “Félicitations” -->
   <div class="modal" id="congrats-modal" aria-hidden="true" hidden>
     <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="congrats-title">
       <button class="modal-close" data-action="close-modal" aria-label="Fermer">×</button>
       <h3 id="congrats-title">Félicitations 🎉</h3>
       <p>Ton inscription est validée ! Tu peux maintenant augmenter tes points en invitant tes proches.</p>
       <div class="modal-actions">
-        <button class="btn" id="cta-more-points">Gagner plus de points</button>
+        <button class="btn bounce" id="cta-more-points">Gagner plus de points</button>
       </div>
     </div>
     <div class="modal-backdrop" data-action="close-modal"></div>
   </div>
+
+  <!-- Micro script: bounce + placeholder compteur si app.js tarde -->
+  <script>
+    // Effet "pop" bref après clic sur les CTA
+    document.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.btn.bounce');
+      if(!btn) return;
+      btn.classList.add('is-popping');
+      setTimeout(()=>btn.classList.remove('is-popping'), 300);
+    });
+
+    // Si le JS n'a pas encore mis à jour le compteur après 3s, affiche un fallback neutre
+    setTimeout(()=>{
+      const c = document.getElementById('counter-left');
+      if (c && /Chargement…/.test(c.textContent)) c.textContent = 'Participants en direct (mise à jour…)';
+    }, 3000);
+  </script>
 </body>
 </html>
